@@ -57,7 +57,7 @@ def send_jobs_email(to_email, data_list, date_str):
     from_email = "mashav.journal@gmail.com"
     password = st.secrets.get("EMAIL_PASS", "").replace(" ", "")
     if not password:
-        return False, "Пароль приложений (EMAIL_PASS) не найден в Secrets!"
+        return False, "Пароль приложений (EMAIL_PASS) не найден ב-Secrets!"
     
     msg = MIMEMultipart()
     msg['From'] = from_email
@@ -75,6 +75,13 @@ def send_jobs_email(to_email, data_list, date_str):
     </html>
     """
     msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+    
+    excel_buffer = io.BytesIO()
+    df_mail.to_excel(excel_buffer, index=False)
+    excel_buffer.seek(0)
+    part = MIMEApplication(excel_buffer.read(), Name=f"Jobs_{date_str}.xlsx")
+    part['Content-Disposition'] = f'attachment; filename="Jobs_{date_str}.xlsx"'
+    msg.attach(part)
     
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -208,7 +215,7 @@ def get_journal_data_list(date_str, unit, shift):
     return raw_list[:6]
 
 @st.cache_data(ttl=5)
-def load_jobs_db():
+def load_jobs_db(target_date):
     file_id = get_file_id(JOBS_FILE)
     if file_id:
         try:
@@ -217,9 +224,20 @@ def load_jobs_db():
             done = False
             while not done: _, done = downloader.next_chunk()
             fh.seek(0); df = pd.read_excel(fh).fillna("")
-            return [str(x) for x in df.iloc[:, 1].tolist() if str(x).strip() != ""]
+            
+            # Миграция / фильтрация по дате
+            if "Date" not in df.columns:
+                return [""] * 15
+            
+            sub = df[df['Date'] == target_date].copy()
+            if not sub.empty:
+                sub['RowIdx'] = pd.to_numeric(sub['RowIdx'])
+                sub = sub.sort_values('RowIdx')
+                jobs_list = sub['Description'].tolist()
+                while len(jobs_list) < 15: jobs_list.append("")
+                return jobs_list[:15]
         except: pass
-    return []
+    return [""] * 15
 
 def colorize_schedule(val):
     v = str(val).split('.')[0].strip()
@@ -277,8 +295,8 @@ with tab_log:
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_morn:
-            # ИСПРАВЛЕНО: Добавлен padding, убраны конфликтующие стили высоты
-            st.markdown(f'<div style="background-color:#d35400; color:white; padding:10px 0px; text-align:center; font-weight:bold; border:1px solid #7f8c8d; font-size:16px; margin-bottom:0px;">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
+            # Идеальное центрирование через Flexbox
+            st.markdown(f'<div style="background-color:#d35400; color:white; display:flex; align-items:center; justify-content:center; height:45px; font-weight:bold; border:1px solid #7f8c8d; border-bottom:none; font-size:16px; margin-bottom:0px;">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
@@ -288,8 +306,8 @@ with tab_log:
                 saved_inputs[(u_name, 'Morning', idx)] = (h_val, d_val)
                 
         with c_night:
-            # ИСПРАВЛЕНО: Добавлен padding, убраны конфликтующие стили высоты
-            st.markdown(f'<div style="background-color:#2980b9; color:white; padding:10px 0px; text-align:center; font-weight:bold; border:1px solid #7f8c8d; font-size:16px; margin-bottom:0px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
+            # Идеальное центрирование через Flexbox
+            st.markdown(f'<div style="background-color:#2980b9; color:white; display:flex; align-items:center; justify-content:center; height:45px; font-weight:bold; border:1px solid #7f8c8d; border-bottom:none; font-size:16px; margin-bottom:0px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
@@ -355,8 +373,8 @@ with tab_sch:
 with tab_jobs:
     st.markdown("<h3>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
     
-    loaded_jobs = load_jobs_db()
-    while len(loaded_jobs) < 15: loaded_jobs.append("")
+    # Загружаем работы СТРОГО для выбранной даты
+    loaded_jobs = load_jobs_db(date_str)
     
     saved_jobs_inputs = []
     
@@ -375,10 +393,39 @@ with tab_jobs:
     with col_save:
         if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True):
             try:
-                df_save = pd.DataFrame(saved_jobs_inputs)
-                fh = io.BytesIO(); df_save.to_excel(fh, index=False); fh.seek(0)
-                media = MediaIoBaseUpload(fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
+                # Читаем всю базу работ, чтобы не затереть другие дни
                 file_id = get_file_id(JOBS_FILE)
+                if file_id:
+                    request = drive_service.files().get_media(fileId=file_id)
+                    fh = io.BytesIO(); downloader = MediaIoBaseDownload(fh, request)
+                    done = False
+                    while not done: _, done = downloader.next_chunk()
+                    fh.seek(0)
+                    df_all = pd.read_excel(fh).fillna("")
+                    if "Date" not in df_all.columns:
+                        df_all = pd.DataFrame(columns=['Date', 'RowIdx', 'Description'])
+                else:
+                    df_all = pd.DataFrame(columns=['Date', 'RowIdx', 'Description'])
+
+                # Удаляем старые записи за текущую дату
+                df_all = df_all[df_all['Date'] != date_str]
+
+                # Добавляем новые записи
+                new_job_rows = []
+                for idx, job_data in enumerate(saved_jobs_inputs):
+                    if job_data["משימות ופעולות לביצוע"].strip():
+                        new_job_rows.append({'Date': date_str, 'RowIdx': idx, 'Description': job_data["משימות ופעולות לביצוע"].strip()})
+
+                if new_job_rows:
+                    df_new = pd.DataFrame(new_job_rows)
+                    df_all = pd.concat([df_all, df_new], ignore_index=True)
+
+                # Сохраняем обратно
+                out_fh = io.BytesIO()
+                df_all.to_excel(out_fh, index=False)
+                out_fh.seek(0)
+                media = MediaIoBaseUpload(out_fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
+                
                 if file_id: 
                     drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
                     st.cache_data.clear()
@@ -397,7 +444,6 @@ with tab_jobs:
         
     if btn_send:
         with st.spinner("שולח..."):
-            date_str_jobs = st.session_state.log_date.strftime("%Y-%m-%d")
-            success, msg = send_jobs_email(target_email, saved_jobs_inputs, date_str_jobs)
+            success, msg = send_jobs_email(target_email, saved_jobs_inputs, date_str)
             if success: st.success(msg)
             else: st.error(msg)
