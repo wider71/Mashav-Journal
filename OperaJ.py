@@ -242,13 +242,13 @@ def draw_turbine_block(unit_name, section_num, date_str):
     df_m = get_journal_slice(date_str, unit_name, 'Morning')
     df_n = get_journal_slice(date_str, unit_name, 'Night')
     
-    # Возвращаем простую заливку цветом без конфликтующих свойств
-    styled_m = df_m.style.map(lambda _: 'background-color: #fdf5e6; color: black;')
-    styled_n = df_n.style.map(lambda _: 'background-color: #fdf5e6; color: black;')
+    # Жесткая фиксация стилей ячеек Pandas
+    styled_m = df_m.style.set_properties(**{'background-color': '#fdf5e6', 'color': 'black', 'text-align': 'right'})
+    styled_n = df_n.style.set_properties(**{'background-color': '#fdf5e6', 'color': 'black', 'text-align': 'right'})
     
-    # Жесткая фиксация ширины "שעה" в 60 пикселей
+    # Экстремально узкая колонка шэа и широкая для описания
     config = {
-        "שעה": st.column_config.TextColumn("שעה", width=60),
+        "שעה": st.column_config.TextColumn("שעה", width=25),
         "תיאור התקלה / עבודה": st.column_config.TextColumn("תיאור התקלה / עבודה", width="large")
     }
 
@@ -365,11 +365,11 @@ with tab_jobs:
     df_jobs = load_jobs_db()
     df_ui_jobs = df_jobs[["משימות ופעולות לביצוע", "מספר"]]
     
-    styled_jobs = df_ui_jobs.style.map(lambda _: 'background-color: #ebf5fb; color: black;')
+    styled_jobs = df_ui_jobs.style.set_properties(**{'background-color': '#ebf5fb', 'color': 'black', 'text-align': 'right'})
     
-    # Жесткая фиксация ширины "מספר" в 50 пикселей + запрет на редактирование
+    # Экстремально узкая колонка и широкая для текста
     config_jobs = {
-        "מספר": st.column_config.TextColumn("מספר", width=50, disabled=True),
+        "מספר": st.column_config.TextColumn("מספר", width=15, disabled=True),
         "משימות ופעולות לביצוע": st.column_config.TextColumn("משימות ופעולות לביצוע", width="large")
     }
     
