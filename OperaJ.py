@@ -242,13 +242,13 @@ def draw_turbine_block(unit_name, section_num, date_str):
     df_m = get_journal_slice(date_str, unit_name, 'Morning')
     df_n = get_journal_slice(date_str, unit_name, 'Night')
     
-    # Жесткая фиксация стилей ячеек Pandas
+    # Возвращаем рабочий и проверенный код стилей: только фон, цвет текста и жесткое выравнивание вправо
     styled_m = df_m.style.set_properties(**{'background-color': '#fdf5e6', 'color': 'black', 'text-align': 'right'})
     styled_n = df_n.style.set_properties(**{'background-color': '#fdf5e6', 'color': 'black', 'text-align': 'right'})
     
-    # Экстремально узкая колонка шэа и широкая для описания
+    # "small" - это минимально допустимая алгоритмом ширина для колонки
     config = {
-        "שעה": st.column_config.TextColumn("שעה", width=25),
+        "שעה": st.column_config.TextColumn("שעה", width="small", max_chars=5),
         "תיאור התקלה / עבודה": st.column_config.TextColumn("תיאור התקלה / עבודה", width="large")
     }
 
@@ -367,9 +367,9 @@ with tab_jobs:
     
     styled_jobs = df_ui_jobs.style.set_properties(**{'background-color': '#ebf5fb', 'color': 'black', 'text-align': 'right'})
     
-    # Экстремально узкая колонка и широкая для текста
+    # "small" ширина и запрет на изменение текста номера
     config_jobs = {
-        "מספר": st.column_config.TextColumn("מספר", width=15, disabled=True),
+        "מספר": st.column_config.TextColumn("מספר", width="small", disabled=True),
         "משימות ופעולות לביצוע": st.column_config.TextColumn("משימות ופעולות לביצוע", width="large")
     }
     
