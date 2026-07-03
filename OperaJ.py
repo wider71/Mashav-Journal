@@ -8,6 +8,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from email.header import Header
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
@@ -65,12 +66,13 @@ def send_jobs_email(to_email, df_jobs, date_str):
     msg = MIMEMultipart()
     msg['From'] = from_email
     msg['To'] = to_email
-    msg['Subject'] = f"עבודות מתוכננות להיום - {date_str}"
+    # Жесткая кодировка иврита для заголовков почты, чтобы не летело в спам
+    msg['Subject'] = Header(f"עבודות מתוכננות להיום - {date_str}", 'utf-8')
     
     html_table = df_jobs.to_html(index=False, justify='right')
     html_body = f"""
     <html dir="rtl">
-    <body style="font-family: Arial, sans-serif;">
+    <body style="font-family: Arial, sans-serif; text-align: right;">
         <h2>עבודות מתוכננות להיום ({date_str})</h2>
         {html_table}
     </body>
@@ -113,6 +115,7 @@ st.markdown("""
     }
 
     [data-testid="stDataEditor"] { font-size: 16px !important; font-weight: bold !important; }
+    [data-testid="stDataEditor"] input, [data-testid="stDataEditor"] textarea { direction: rtl !important; text-align: right !important; }
     th { font-size: 16px !important; text-align: right !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -203,7 +206,6 @@ def get_journal_slice(date_str, unit, shift):
         records.append({'Hour': '', 'Description': ''})
 
     out = pd.DataFrame(records[:6])
-    # Жесткий порядок для Стримлита: Описание слева, Часы справа
     out = out[['Description', 'Hour']]
     out.columns = ['תיאור התקלה / עבודה', 'שעה']
     return out
@@ -266,9 +268,9 @@ def draw_turbine_block(unit_name, section_num, date_str):
     df_m = get_journal_slice(date_str, unit_name, 'Morning')
     df_n = get_journal_slice(date_str, unit_name, 'Night')
     
-    # ПЕСОЧНЫЙ ЦВЕТ ДЛЯ ЖУРНАЛА
-    styled_m = df_m.style.map(lambda _: 'background-color: #fdf5e6; color: black;')
-    styled_n = df_n.style.map(lambda _: 'background-color: #fdf5e6; color: black;')
+    # Жесткая привязка текста вправо через стили Pandas
+    styled_m = df_m.style.map(lambda _: 'background-color: #fdf5e6; color: black;').set_properties(**{'text-align': 'right'})
+    styled_n = df_n.style.map(lambda _: 'background-color: #fdf5e6; color: black;').set_properties(**{'text-align': 'right'})
     
     config = {
         "שעה": st.column_config.TextColumn("שעה", width=80),
@@ -297,7 +299,6 @@ def draw_turbine_block(unit_name, section_num, date_str):
 
     return (unit_name, 'Morning', ed_m), (unit_name, 'Night', ed_n)
 
-# РАСКРАСКА СИДУРА
 def colorize_schedule(val):
     v = str(val).split('.')[0].strip()
     if v == '1': return 'background-color: #a9dfbf; color: black;'
@@ -373,14 +374,11 @@ with tab_sch:
             df_clean = pd.DataFrame(cleaned_data)
             df_clean.columns = df_clean.columns.astype(str)
             
-            # ФИЗИЧЕСКИЙ РАЗВОРОТ КОЛОНОК ДЛЯ ОТОБРАЖЕНИЯ (0 уходит вправо)
             rev_cols = list(df_clean.columns)[::-1]
             df_ui = df_clean[rev_cols]
-            
-            # Переименовываем правую колонку в "שם" чтобы было красиво
             df_ui.rename(columns={'0': 'שם'}, inplace=True)
             
-            styled_df = df_ui.style.map(colorize_schedule)
+            styled_df = df_ui.style.map(colorize_schedule).set_properties(**{'text-align': 'center'})
             sch_config = {"שם": st.column_config.TextColumn("שם", width=100)}
 
             edited_schedule = st.data_editor(styled_df, use_container_width=True, height=600, hide_index=True, column_config=sch_config)
@@ -389,7 +387,7 @@ with tab_sch:
                 try:
                     df_save = edited_schedule.copy()
                     df_save.rename(columns={'שם': '0'}, inplace=True)
-                    df_save = df_save[list(df_clean.columns)] # Возвращаем оригинальный порядок
+                    df_save = df_save[list(df_clean.columns)]
                     
                     out_fh = io.BytesIO()
                     df_save.to_excel(out_fh, index=False, header=False)
@@ -415,15 +413,13 @@ with tab_jobs:
     st.markdown("<h3>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
     
     df_jobs = load_jobs_db()
-    
-    # ФИЗИЧЕСКИЙ РАЗВОРОТ: "מספר" СТАНОВИТСЯ СПРАВА
     df_ui_jobs = df_jobs[["משימות ופעולות לביצוע", "מספר"]]
     
-    # ФОН ДЛЯ РАБОТ
-    styled_jobs = df_ui_jobs.style.map(lambda _: 'background-color: #ebf5fb; color: black;')
+    # Привязка текста вправо
+    styled_jobs = df_ui_jobs.style.map(lambda _: 'background-color: #ebf5fb; color: black;').set_properties(**{'text-align': 'right'})
     
     config_jobs = {
-        "מספר": st.column_config.TextColumn("מספר", width=80),
+        "מספר": st.column_config.TextColumn("מספר", width=40, disabled=True),
         "משימות ופעולות לביצוע": st.column_config.TextColumn("משימות ופעולות לביצוע", width="large")
     }
     
@@ -434,7 +430,6 @@ with tab_jobs:
     with col_save:
         if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True):
             try:
-                # ВОЗВРАТ КОЛОНОК НА МЕСТО ПЕРЕД СОХРАНЕНИЕМ
                 df_save_jobs = edited_df[["מספר", "משימות ופעולות לביצוע"]]
                 
                 file_id = get_file_id(JOBS_FILE)
