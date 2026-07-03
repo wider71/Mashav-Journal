@@ -95,7 +95,7 @@ def send_jobs_email(to_email, data_list, date_str):
     except Exception as e:
         return False, f"שגיאה בשרת הדואר: {str(e)}"
 
-# --- 3. ТОТАЛЬНОЕ УНИЧТОЖЕНИЕ ПУСТЫХ ПРОСТРАНСТВ (CSS) ---
+# --- 3. ТОТАЛЬНОЕ УНИЧТОЖЕНИЕ ПУСТЫХ ПРОСТРАНСТВ И ДИЗАЙН (CSS) ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
@@ -108,11 +108,12 @@ st.markdown("""
     div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
+    /* ФОН ЯЧЕЕК И РАМКИ */
     div[data-testid="stTextInput"] div[data-baseweb="input"] {
         border-radius: 0px !important; 
         min-height: 38px !important;
         height: 38px !important;
-        background-color: #fdfaf6 !important; 
+        background-color: #f4ecd8 !important; /* Приятный насыщенный песочный цвет */
         border: 1px solid #7f8c8d !important;
         margin-top: -1px !important; 
     }
@@ -126,6 +127,28 @@ st.markdown("""
         padding-right: 8px !important;
     }
 
+    /* ИДЕАЛЬНО ОТЦЕНТРОВАННЫЕ ЗАГОЛОВКИ */
+    .header-box {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 45px !important;
+        border: 1px solid #7f8c8d !important;
+        border-bottom: none !important;
+        font-size: 16px !important;
+        font-weight: bold !important;
+        color: white !important;
+        margin-bottom: -1px !important;
+    }
+    /* Глушим системные отступы абзацев Streamlit */
+    .header-box p {
+        margin: 0px !important;
+        padding: 0px !important;
+    }
+    .bg-orange { background-color: #d35400 !important; }
+    .bg-blue { background-color: #2980b9 !important; }
+
+    /* НОМЕРА В עבודות */
     .num-box {
         background-color: #2c3e50 !important;
         color: white !important;
@@ -139,7 +162,7 @@ st.markdown("""
         font-size: 16px !important;
         margin-top: -1px !important;
     }
-
+    
     .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
     .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
@@ -225,7 +248,6 @@ def load_jobs_db(target_date):
             while not done: _, done = downloader.next_chunk()
             fh.seek(0); df = pd.read_excel(fh).fillna("")
             
-            # Миграция / фильтрация по дате
             if "Date" not in df.columns:
                 return [""] * 15
             
@@ -251,7 +273,7 @@ def colorize_schedule(val):
 tab_log, tab_sch, tab_jobs = st.tabs(["דוח משמרת", "סידור", "עבודות היום"])
 
 # ==========================================
-# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ (МОНОЛИТНАЯ СЕТКА)
+# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ
 # ==========================================
 with tab_log:
     col_logo, col_title, col_cal_r, col_cal_m, col_cal_l = st.columns([1, 4, 1.2, 1.8, 1.2])
@@ -295,8 +317,8 @@ with tab_log:
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_morn:
-            # Идеальное центрирование через Flexbox
-            st.markdown(f'<div style="background-color:#d35400; color:white; display:flex; align-items:center; justify-content:center; height:45px; font-weight:bold; border:1px solid #7f8c8d; border-bottom:none; font-size:16px; margin-bottom:0px;">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
+            # Применяем новый класс header-box
+            st.markdown(f'<div class="header-box bg-orange">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
@@ -306,8 +328,7 @@ with tab_log:
                 saved_inputs[(u_name, 'Morning', idx)] = (h_val, d_val)
                 
         with c_night:
-            # Идеальное центрирование через Flexbox
-            st.markdown(f'<div style="background-color:#2980b9; color:white; display:flex; align-items:center; justify-content:center; height:45px; font-weight:bold; border:1px solid #7f8c8d; border-bottom:none; font-size:16px; margin-bottom:0px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="header-box bg-blue">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
@@ -368,12 +389,11 @@ with tab_sch:
 
 
 # ==========================================
-# ОКНО 3: РАБОТЫ НА СЕГОДНЯ (ИДЕАЛЬНАЯ СЕТКА)
+# ОКНО 3: РАБОТЫ НА СЕГОДНЯ
 # ==========================================
 with tab_jobs:
     st.markdown("<h3>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
     
-    # Загружаем работы СТРОГО для выбранной даты
     loaded_jobs = load_jobs_db(date_str)
     
     saved_jobs_inputs = []
@@ -393,7 +413,6 @@ with tab_jobs:
     with col_save:
         if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True):
             try:
-                # Читаем всю базу работ, чтобы не затереть другие дни
                 file_id = get_file_id(JOBS_FILE)
                 if file_id:
                     request = drive_service.files().get_media(fileId=file_id)
@@ -407,10 +426,8 @@ with tab_jobs:
                 else:
                     df_all = pd.DataFrame(columns=['Date', 'RowIdx', 'Description'])
 
-                # Удаляем старые записи за текущую дату
                 df_all = df_all[df_all['Date'] != date_str]
 
-                # Добавляем новые записи
                 new_job_rows = []
                 for idx, job_data in enumerate(saved_jobs_inputs):
                     if job_data["משימות ופעולות לביצוע"].strip():
@@ -420,7 +437,6 @@ with tab_jobs:
                     df_new = pd.DataFrame(new_job_rows)
                     df_all = pd.concat([df_all, df_new], ignore_index=True)
 
-                # Сохраняем обратно
                 out_fh = io.BytesIO()
                 df_all.to_excel(out_fh, index=False)
                 out_fh.seek(0)
