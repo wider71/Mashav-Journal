@@ -76,13 +76,6 @@ def send_jobs_email(to_email, data_list, date_str):
     """
     msg.attach(MIMEText(html_body, 'html', 'utf-8'))
     
-    excel_buffer = io.BytesIO()
-    df_mail.to_excel(excel_buffer, index=False)
-    excel_buffer.seek(0)
-    part = MIMEApplication(excel_buffer.read(), Name=f"Jobs_{date_str}.xlsx")
-    part['Content-Disposition'] = f'attachment; filename="Jobs_{date_str}.xlsx"'
-    msg.attach(part)
-    
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.ehlo()
@@ -95,7 +88,7 @@ def send_jobs_email(to_email, data_list, date_str):
     except Exception as e:
         return False, f"שגיאה בשרת הדואר: {str(e)}"
 
-# --- 3. ТОТАЛЬНОЕ УНИЧТОЖЕНИЕ ПУСТЫХ ПРОСТРАНСТВ (CSS) ---
+# --- 3. CSS (ОПТИМИЗИРОВАННЫЙ ПОД ЗАГОЛОВКИ) ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
@@ -108,51 +101,39 @@ st.markdown("""
     div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
-    /* КРАСИМ САМО ПОЛЕ ВВОДА, А НЕ ЕГО ОБЕРТКУ */
+    div[data-testid="stTextInput"] div[data-baseweb="input"] {
+        border-radius: 0px !important; 
+        min-height: 38px !important;
+        height: 38px !important;
+        background-color: #eaf0dc !important; 
+        border: 1px solid #7f8c8d !important;
+        margin-top: -1px !important; 
+    }
+    
     div[data-testid="stTextInput"] input {
-        background-color: #eaf0dc !important; /* Фисташковый цвет напрямую в инпут */
         direction: rtl !important;
         text-align: right !important;
         font-size: 16px !important;
         font-weight: bold !important;
         color: #000000 !important;
         padding-right: 8px !important;
-        border-radius: 0px !important;
-        border: 1px solid #7f8c8d !important;
-        height: 38px !important;
-    }
-    
-    /* Делаем обертку прозрачной */
-    div[data-testid="stTextInput"] div[data-baseweb="input"] {
-        background-color: transparent !important;
-        border: none !important;
-        margin-top: -1px !important; 
     }
 
-    /* ИДЕАЛЬНО ОТЦЕНТРОВАННЫЕ ЗАГОЛОВКИ */
-    .header-orange, .header-blue {
+    /* ИСПРАВЛЕННЫЕ ЗАГОЛОВКИ (БЕЗ ПАРАГРАФОВ) */
+    .header-box {
+        background-color: #d35400; /* Orange default */
+        color: white !important;
         text-align: center !important;
         font-weight: bold !important;
         font-size: 16px !important;
-        color: white !important;
-        height: 40px !important;
-        line-height: 40px !important; /* Высота строки равна высоте блока = текст по центру */
+        min-height: 50px !important;
+        padding-top: 10px !important;
         border: 1px solid #7f8c8d !important;
-        border-bottom: none !important;
         margin-bottom: -1px !important;
-        display: block !important;
+        overflow: visible !important;
     }
-    .header-orange { background-color: #d35400 !important; }
     .header-blue { background-color: #2980b9 !important; }
-    
-    /* Убиваем системные отступы абзаца */
-    .header-orange p, .header-blue p {
-        margin: 0px !important;
-        padding: 0px !important;
-        line-height: 40px !important;
-    }
 
-    /* НОМЕРА В עבודות */
     .num-box {
         background-color: #2c3e50 !important;
         color: white !important;
@@ -162,16 +143,9 @@ st.markdown("""
         height: 38px !important;
         line-height: 38px !important;
         border: 1px solid #7f8c8d !important;
-        margin: 0px !important;
         margin-top: -1px !important;
-        display: block !important;
     }
-    .num-box p {
-        margin: 0px !important;
-        padding: 0px !important;
-        line-height: 38px !important;
-    }
-
+    
     .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
     .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
@@ -326,7 +300,8 @@ with tab_log:
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_morn:
-            st.markdown(f'<div class="header-orange">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
+            # Используем div вместо markdown с <p>, чтобы избежать вложений
+            st.markdown(f'<div class="header-box header-orange">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
@@ -336,7 +311,7 @@ with tab_log:
                 saved_inputs[(u_name, 'Morning', idx)] = (h_val, d_val)
                 
         with c_night:
-            st.markdown(f'<div class="header-blue">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="header-box header-blue">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
