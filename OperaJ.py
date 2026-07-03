@@ -160,7 +160,7 @@ st.markdown("""
         font-weight: bold !important;
         font-size: 16px !important;
         color: white !important;
-        padding: 10px 0px !important; /* Разжимаем контейнер изнутри, текст никогда не обрежется */
+        padding: 10px 0px !important; 
         border: 1px solid #7f8c8d !important;
         display: block !important;
         margin: 0px !important;
@@ -332,7 +332,7 @@ def colorize_schedule(val):
 tab_log, tab_sch, tab_jobs = st.tabs(["דוח משמרת", "סידור", "עבודות היום"])
 
 # ==========================================
-# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ (СТРОЧНЫЙ РЕНДЕР)
+# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ
 # ==========================================
 with tab_log:
     col_logo, col_title, col_cal_r, col_cal_m, col_cal_l = st.columns([1, 4, 1.2, 1.8, 1.2])
@@ -371,47 +371,55 @@ with tab_log:
     for u_name, u_num in units:
         st.markdown(f'<div style="height:15px;"></div>', unsafe_allow_html=True)
         
-        # СТРОКА ЗАГОЛОВКОВ
-        h_cols = st.columns([15, 0.5, 15])
-        with h_cols[0]: st.markdown(f'<div class="header-blue">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
-        with h_cols[2]: st.markdown(f'<div class="header-orange">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
-
+        # ПРАВИЛЬНЫЙ RTL-ПОРЯДОК: [0]=Слева (Ночь), [2]=Справа (Утро)
+        c_night, c_space, c_morn = st.columns([10, 0.5, 10])
+        
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
-        # СТРОКИ ДАННЫХ
-        for idx in range(6):
-            cols = st.columns([11, 2.5, 1.5, 0.5, 11, 2.5, 1.5])
-
-            # БЛОК "НОЧЬ" (Слева)
-            with cols[0]:
-                d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), label_visibility="collapsed")
-            with cols[1]:
-                h_n = st.text_input(f"hn_{u_num}_{idx}", value=n_data[idx].get('Hour',''), label_visibility="collapsed")
-            with cols[2]:
-                if st.button("@", key=f"bn_{u_num}_{idx}", type="secondary", use_container_width=True):
-                    if st.session_state[f"hn_{u_num}_{idx}"].strip() or st.session_state[f"dn_{u_num}_{idx}"].strip():
-                        success, msg = send_warehouse_email("wider71@gmail.com", u_name, "לילה", st.session_state[f"hn_{u_num}_{idx}"], st.session_state[f"dn_{u_num}_{idx}"], date_str)
-                        if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
-                        else: st.toast(f"שגיאה: {msg}", icon="❌")
-                    else:
-                        st.toast("השורה ריקה!", icon="⚠️")
-            saved_inputs[(u_name, 'Night', idx)] = (h_n, d_n)
-
-            # БЛОК "УТРО" (Справа)
-            with cols[4]:
-                d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), label_visibility="collapsed")
-            with cols[5]:
-                h_m = st.text_input(f"hm_{u_num}_{idx}", value=m_data[idx].get('Hour',''), label_visibility="collapsed")
-            with cols[6]:
-                if st.button("@", key=f"bm_{u_num}_{idx}", type="secondary", use_container_width=True):
-                    if st.session_state[f"hm_{u_num}_{idx}"].strip() or st.session_state[f"dm_{u_num}_{idx}"].strip():
-                        success, msg = send_warehouse_email("wider71@gmail.com", u_name, "בוקר", st.session_state[f"hm_{u_num}_{idx}"], st.session_state[f"dm_{u_num}_{idx}"], date_str)
-                        if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
-                        else: st.toast(f"שגיאה: {msg}", icon="❌")
-                    else:
-                        st.toast("השורה ריקה!", icon="⚠️")
-            saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
+        with c_night:
+            # ЛЕВАЯ СТОРОНА: СИНЯЯ (НОЧЬ)
+            st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
+            for idx in range(6):
+                # ВНУТРИ СТРОКИ: [0]=Слева(Описание), [1]=Центр(Время), [2]=Справа(Кнопка @)
+                c_d, c_h, c_b = st.columns([11.5, 2.5, 1])
+                with c_d:
+                    d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with c_h:
+                    h_n = st.text_input(f"hn_{u_num}_{idx}", value=n_data[idx].get('Hour',''), key=f"hn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with c_b:
+                    if st.button("@", key=f"btn_wh_n_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
+                        h_val_cur = st.session_state.get(f"hn_{u_num}_{idx}_{date_str}", "")
+                        d_val_cur = st.session_state.get(f"dn_{u_num}_{idx}_{date_str}", "")
+                        if h_val_cur.strip() or d_val_cur.strip():
+                            success, msg = send_warehouse_email("wider71@gmail.com", u_name, "לילה", h_val_cur, d_val_cur, date_str)
+                            if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
+                            else: st.toast(f"שגיאה: {msg}", icon="❌")
+                        else:
+                            st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
+                saved_inputs[(u_name, 'Night', idx)] = (h_n, d_n)
+                
+        with c_morn:
+            # ПРАВАЯ СТОРОНА: ОРАНЖЕВАЯ (УТРО)
+            st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
+            for idx in range(6):
+                # ВНУТРИ СТРОКИ: [0]=Слева(Описание), [1]=Центр(Время), [2]=Справа(Кнопка @)
+                c_d, c_h, c_b = st.columns([11.5, 2.5, 1])
+                with c_d:
+                    d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with c_h:
+                    h_m = st.text_input(f"hm_{u_num}_{idx}", value=m_data[idx].get('Hour',''), key=f"hm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with c_b:
+                    if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
+                        h_val_cur = st.session_state.get(f"hm_{u_num}_{idx}_{date_str}", "")
+                        d_val_cur = st.session_state.get(f"dm_{u_num}_{idx}_{date_str}", "")
+                        if h_val_cur.strip() or d_val_cur.strip():
+                            success, msg = send_warehouse_email("wider71@gmail.com", u_name, "בוקר", h_val_cur, d_val_cur, date_str)
+                            if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
+                            else: st.toast(f"שגיאה: {msg}", icon="❌")
+                        else:
+                            st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
+                saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
 
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
@@ -494,10 +502,10 @@ with tab_jobs:
     saved_jobs_inputs = []
     
     for i in range(15):
-        # [0]=Номер (Справа), [1]=Текст (Слева)
-        c_num, c_task = st.columns([1, 14])
+        # [0]=Текст (Слева), [1]=Номер (Справа)
+        c_task, c_num = st.columns([14, 1])
         with c_num:
-            st.markdown(f'<div class="num-box">{i+1}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="num-box"><p>{i+1}</p></div>', unsafe_allow_html=True)
         with c_task:
             t_val = st.text_input(f"משימה {i+1}", value=loaded_jobs[i], key=f"job_input_{i}_{date_str}", label_visibility="collapsed")
         saved_jobs_inputs.append({"מספר": str(i+1), "משימות ופעולות לביצוע": t_val})
