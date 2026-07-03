@@ -3,10 +3,13 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 import io
+import json
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
-# --- 1. НАСТРОЙКИ ПУТЕЙ ---
-SCHEDULE_DIR = 'סידור'
-JOURNAL_DB = 'journal_db.csv' # Новая база данных прямого ввода
+# --- 1. НАСТРОЙКИ ПУТЕЙ И КОНСТАНТЫ ---
+JOURNAL_DB = 'journal_db.csv'
 OLD_LOG = 'log.csv'
 JOBS_FILE = 'jobs_internal.xlsx'
 LOGO_FILE = 'Mashav_Logo.png'
@@ -25,17 +28,38 @@ st.set_page_config(page_title="יומן תפעולי משאב", layout="wide")
 if 'log_date' not in st.session_state:
     st.session_state.log_date = datetime.now().date()
 
-# --- 2. ГЛОБАЛЬНЫЙ CSS СТИЛЬ ---
+# --- 2. ПОДКЛЮЧЕНИЕ К GOOGLE DRIVE ---
+@st.cache_resource
+def get_drive_service():
+    creds_json = json.loads(st.secrets["GOOGLE_JSON"])
+    creds = Credentials.from_service_account_info(
+        creds_json,
+        scopes=['https://www.googleapis.com/auth/drive']
+    )
+    return build('drive', 'v3', credentials=creds)
+
+try:
+    drive_service = get_drive_service()
+    FOLDER_ID = st.secrets["FOLDER_ID"]
+except Exception as e:
+    st.error(f"שגיאה בהתחברות לענן. בדוק את Secrets. Error: {e}")
+    st.stop()
+
+def get_file_id(filename):
+    query = f"'{FOLDER_ID}' in parents and name = '{filename}' and trashed = false"
+    results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+    items = results.get('files', [])
+    return items[0]['id'] if items else None
+
+
+# --- 3. ГЛОБАЛЬНЫЙ CSS СТИЛЬ ---
 st.markdown("""
     <style>
-    /* Отступ сверху увеличен до 3rem, чтобы вкладки не перекрывались */
     .block-container { padding-top: 3rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
     .stApp { background-color: #9ba4b5; }
-    
     * { direction: rtl !important; text-align: right !important; }
     .stTextInput input, .stTextArea textarea, .stSelectbox > div > div { direction: rtl; text-align: right; }
     
-    /* Стилизация вкладок, чтобы они были большими и заметными */
     .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 0px;}
     .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
@@ -45,17 +69,15 @@ st.markdown("""
         font-weight: bold; font-size: 18px; border: 2px solid #1e7e34 !important;
     }
 
-    /* Увеличение шрифта внутри всех DataEditor */
     [data-testid="stDataEditor"] { font-size: 16px !important; }
-    
     .sidur-container { overflow-x: auto; border: 3px solid black; background-color: white; }
     </style>
 """, unsafe_allow_html=True)
 
 
-# --- 3. ФУНКЦИИ БЭКЕНДА ---
+# --- 4. ФУНКЦИИ БЭКЕНДА (ОБЛАКО G-DRIVE) ---
 def migrate_old_logs():
-    if os.path.exists(OLD_LOG) and not os.path.exists(JOURNAL_DB):
+    if os.path.exists(OLD_LOG) and get_file_id(JOURNAL_DB) is None:
         try:
             old = pd.read_csv(OLD_LOG, encoding='utf-8-sig')
             rows = []
@@ -69,23 +91,41 @@ def migrate_old_logs():
                 if h or desc:
                     rows.append({'Date': d, 'Unit': u, 'Shift': s_new, 'RowIdx': 0, 'Hour': h, 'Description': desc})
             if rows:
-                pd.DataFrame(rows).to_csv(JOURNAL_DB, index=False, encoding='utf-8-sig')
+                df = pd.DataFrame(rows)
+                fh = io.BytesIO()
+                df.to_csv(fh, index=False, encoding='utf-8-sig')
+                fh.seek(0)
+                media = MediaIoBaseUpload(fh, mimetype='text/csv', resumable=True)
+                file_metadata = {'name': JOURNAL_DB, 'parents': [FOLDER_ID]}
+                drive_service.files().create(body=file_metadata, media_body=media).execute()
         except: pass
 
-def get_schedule_file(target_month):
+@st.cache_data(ttl=30)
+def get_schedule_file_drive(target_month):
     markers = MONTH_MARKERS.get(target_month, [])
-    for d in [SCHEDULE_DIR, '.']:
-        if not os.path.exists(d): continue
-        for f in os.listdir(d):
-            if f.endswith(('.xlsx', '.xls', '.csv')):
-                if any(m in f.lower() for m in markers): return os.path.join(d, f)
-    return None
+    query = f"'{FOLDER_ID}' in parents and trashed = false"
+    try:
+        results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+        for f in results.get('files', []):
+            name = f['name']
+            if name.endswith(('.xlsx', '.xls', '.csv')):
+                if any(m in name.lower() for m in markers):
+                    return f['id'], name
+    except Exception: pass
+    return None, None
 
 @st.cache_data(ttl=60) 
-def get_operators(file_path, target_day):
-    if not file_path: return ["קובץ חסר"], ["קובץ חסר"]
+def get_operators(file_id, target_day):
+    if not file_id: return ["קובץ חסר"], ["קובץ חסר"]
     try:
-        df = pd.read_excel(file_path, header=None)
+        request = drive_service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done: _, done = downloader.next_chunk()
+        fh.seek(0)
+        
+        df = pd.read_excel(fh, header=None)
         raw = df.values.tolist()
         
         cal_row_idx = None
@@ -117,12 +157,23 @@ def get_operators(file_path, target_day):
     except Exception:
         return ["שגיאה"], []
 
-def get_journal_slice(date_str, unit, shift):
-    if not os.path.exists(JOURNAL_DB):
-        df = pd.DataFrame(columns=['Date', 'Unit', 'Shift', 'RowIdx', 'Hour', 'Description'])
-    else:
-        df = pd.read_csv(JOURNAL_DB, dtype=str).fillna("")
+@st.cache_data(ttl=30)
+def load_journal_db():
+    file_id = get_file_id(JOURNAL_DB)
+    if file_id:
+        try:
+            request = drive_service.files().get_media(fileId=file_id)
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done: _, done = downloader.next_chunk()
+            fh.seek(0)
+            return pd.read_csv(fh, dtype=str).fillna("")
+        except: pass
+    return pd.DataFrame(columns=['Date', 'Unit', 'Shift', 'RowIdx', 'Hour', 'Description'])
 
+def get_journal_slice(date_str, unit, shift):
+    df = load_journal_db()
     sub = df[(df['Date'] == date_str) & (df['Unit'] == unit) & (df['Shift'] == shift)].copy()
     if not sub.empty:
         sub['RowIdx'] = pd.to_numeric(sub['RowIdx'])
@@ -137,12 +188,8 @@ def get_journal_slice(date_str, unit, shift):
     return out
 
 def save_all_journal_grids(date_str, dfs_list):
-    if os.path.exists(JOURNAL_DB):
-        db = pd.read_csv(JOURNAL_DB, dtype=str).fillna("")
-    else:
-        db = pd.DataFrame(columns=['Date', 'Unit', 'Shift', 'RowIdx', 'Hour', 'Description'])
-
-    db = db[db['Date'] != date_str] # Очищаем текущий день перед перезаписью
+    db = load_journal_db()
+    db = db[db['Date'] != date_str] 
 
     rows = []
     for unit, shift, df in dfs_list:
@@ -154,7 +201,35 @@ def save_all_journal_grids(date_str, dfs_list):
 
     new_df = pd.DataFrame(rows, columns=['Date', 'Unit', 'Shift', 'RowIdx', 'Hour', 'Description'])
     db = pd.concat([db, new_df])
-    db.to_csv(JOURNAL_DB, index=False, encoding='utf-8-sig')
+    
+    file_id = get_file_id(JOURNAL_DB)
+    fh = io.BytesIO()
+    db.to_csv(fh, index=False, encoding='utf-8-sig')
+    fh.seek(0)
+    media = MediaIoBaseUpload(fh, mimetype='text/csv', resumable=True)
+    
+    if file_id:
+        drive_service.files().update(fileId=file_id, media_body=media).execute()
+    else:
+        file_metadata = {'name': JOURNAL_DB, 'parents': [FOLDER_ID]}
+        drive_service.files().create(body=file_metadata, media_body=media).execute()
+    
+    st.cache_data.clear()
+
+@st.cache_data(ttl=30)
+def load_jobs_db():
+    file_id = get_file_id(JOBS_FILE)
+    if file_id:
+        try:
+            request = drive_service.files().get_media(fileId=file_id)
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done: _, done = downloader.next_chunk()
+            fh.seek(0)
+            return pd.read_excel(fh).fillna("")
+        except: pass
+    return pd.DataFrame({"מספר": [i for i in range(1, 16)], "משימות ופעולות לביצוע": ["" for _ in range(15)]})
 
 def draw_turbine_block(unit_name, section_num, date_str):
     c_morn, c_night = st.columns(2)
@@ -198,15 +273,14 @@ def colorize_schedule(val):
     elif v in ['ח', 'מ']: return 'background-color: #f5b7b1; color: black; font-weight: bold;'
     return ''
 
-
 # Запуск миграции старых данных
 migrate_old_logs()
 
-# --- 4. ВКЛАДКИ ОКОН ---
+# --- 5. ВКЛАДКИ ОКОН ---
 tab_log, tab_sch, tab_jobs = st.tabs(["דוח משמרת", "סידור", "עבודות היום"])
 
 # ==========================================
-# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ (ЖИВЫЕ ЯЧЕЙКИ)
+# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ
 # ==========================================
 with tab_log:
     col_logo, col_title, col_cal_r, col_cal_m, col_cal_l = st.columns([1, 4, 1.2, 1.8, 1.2])
@@ -222,8 +296,8 @@ with tab_log:
     with col_cal_l:
         if st.button("יום קודם ◀", type="primary", use_container_width=True): st.session_state.log_date -= timedelta(days=1); st.rerun()
 
-    active_sch = get_schedule_file(st.session_state.log_date.month)
-    s1_names, s2_names = get_operators(active_sch, st.session_state.log_date.day)
+    active_sch_id, sch_name = get_schedule_file_drive(st.session_state.log_date.month)
+    s1_names, s2_names = get_operators(active_sch_id, st.session_state.log_date.day)
 
     st.markdown(f"""
         <div style="display: flex; gap: 10px; margin-top: 2px; margin-bottom: 10px;">
@@ -238,26 +312,30 @@ with tab_log:
 
     date_str = st.session_state.log_date.strftime("%Y-%m-%d")
     
-    # Отрисовка интерактивных сеток
     grids = []
     grids.extend(draw_turbine_block('טורבינה 1', 1, date_str))
     grids.extend(draw_turbine_block('טורבינה 2', 2, date_str))
     grids.extend(draw_turbine_block('טורבינה קיטורית', 3, date_str))
 
-    # Кнопка сохранения в самом низу
     if st.button("💾 שמור כל השינויים ביומן", type="primary", use_container_width=True):
         save_all_journal_grids(date_str, grids)
-        st.success("היומן נשמר בהצלחה!")
-
+        st.success("היומן נשמר בענן בהצלחה!")
 
 # ==========================================
-# ОКНО 2: РАСПИСАНИЕ (СИДУР)
+# ОКНО 2: РАСПИСАНИЕ (СИДУР ИЗ G-DRIVE)
 # ==========================================
 with tab_sch:
     st.markdown("<h3>עריכת טבלת סידור עבודה</h3>", unsafe_allow_html=True)
-    if active_sch:
+    if active_sch_id:
         try:
-            df_excel = pd.read_excel(active_sch, header=None).fillna("")
+            request = drive_service.files().get_media(fileId=active_sch_id)
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done: _, done = downloader.next_chunk()
+            fh.seek(0)
+            
+            df_excel = pd.read_excel(fh, header=None).fillna("")
             raw_matrix = df_excel.values.tolist()
             cleaned_data = [[str(val).replace('.0', '') if val != "" else "" for val in row] for row in raw_matrix]
             df_clean = pd.DataFrame(cleaned_data)
@@ -267,17 +345,21 @@ with tab_sch:
             
             edited_schedule = st.data_editor(styled_df, use_container_width=True, height=600, hide_index=True)
             
-            if st.button("💾 שמור שינויים בסידור", type="primary", use_container_width=True):
-                edited_schedule.to_excel(active_sch, index=False, header=False)
+            if st.button("💾 שמור שינויים בענן (Google Drive)", type="primary", use_container_width=True):
+                out_fh = io.BytesIO()
+                edited_schedule.to_excel(out_fh, index=False, header=False)
+                out_fh.seek(0)
+                media = MediaIoBaseUpload(out_fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
+                drive_service.files().update(fileId=active_sch_id, media_body=media).execute()
+                
                 st.cache_data.clear()
-                st.success("הסידור התעדכן ונשמר בהצלחה!")
+                st.success("הסידור התעדכן ונשמר בענן בהצלחה!")
                 st.rerun()
                 
         except Exception as e:
-            st.error(f"שגיאה: {e}")
+            st.error(f"שגיאה קריאת קובץ: {e}")
     else:
-        st.error("קובץ סידור לא נמצא בתיקיית סידור.")
-
+        st.warning("קובץ סידור לא נמצא ב-Google Drive בתיקייה Mashav_DB.")
 
 # ==========================================
 # ОКНО 3: РАБОТЫ НА СЕГОДНЯ
@@ -285,21 +367,26 @@ with tab_sch:
 with tab_jobs:
     st.markdown("<h3>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
     
-    if os.path.exists(JOBS_FILE):
-        df_jobs = pd.read_excel(JOBS_FILE)
-    else:
-        df_jobs = pd.DataFrame({
-            "מספר": [i for i in range(1, 16)],
-            "משימות ופעולות לביצוע": ["" for _ in range(15)]
-        })
-    
+    df_jobs = load_jobs_db()
     edited_df = st.data_editor(df_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True)
     
     col_save, col_dl, _ = st.columns([2, 2, 6])
     with col_save:
-        if st.button("שמור עבודות (פנימי)", type="primary", use_container_width=True):
-            edited_df.to_excel(JOBS_FILE, index=False)
-            st.success("נשמר בהצלחה בזיכרון התוכנה!")
+        if st.button("שמור עבודות (בענן)", type="primary", use_container_width=True):
+            file_id = get_file_id(JOBS_FILE)
+            fh = io.BytesIO()
+            edited_df.to_excel(fh, index=False)
+            fh.seek(0)
+            media = MediaIoBaseUpload(fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
+            if file_id:
+                drive_service.files().update(fileId=file_id, media_body=media).execute()
+            else:
+                file_metadata = {'name': JOBS_FILE, 'parents': [FOLDER_ID]}
+                drive_service.files().create(body=file_metadata, media_body=media).execute()
+            
+            st.cache_data.clear()
+            st.success("נשמר בהצלחה ב-Google Drive!")
+            
     with col_dl:
         buffer = io.BytesIO()
         edited_df.to_excel(buffer, index=False)
