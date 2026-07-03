@@ -67,9 +67,7 @@ def send_jobs_email(to_email, df_jobs, date_str):
     msg['To'] = to_email
     msg['Subject'] = f"עבודות מתוכננות להיום - {date_str}"
     
-    # Разворачиваем колонки обратно для красивого отчета, если нужно
-    df_html = df_jobs[["מספר", "משימות ופעולות לביצוע"]] if "מספר" in df_jobs.columns else df_jobs
-    html_table = df_html.to_html(index=False, justify='right')
+    html_table = df_jobs.to_html(index=False, justify='right')
     html_body = f"""
     <html dir="rtl">
     <body>
@@ -81,7 +79,7 @@ def send_jobs_email(to_email, df_jobs, date_str):
     msg.attach(MIMEText(html_body, 'html'))
     
     excel_buffer = io.BytesIO()
-    df_html.to_excel(excel_buffer, index=False)
+    df_jobs.to_excel(excel_buffer, index=False)
     excel_buffer.seek(0)
     part = MIMEApplication(excel_buffer.read(), Name=f"Jobs_{date_str}.xlsx")
     part['Content-Disposition'] = f'attachment; filename="Jobs_{date_str}.xlsx"'
@@ -101,7 +99,8 @@ def send_jobs_email(to_email, df_jobs, date_str):
 # --- 3. ГЛОБАЛЬНЫЙ CSS СТИЛЬ ---
 st.markdown("""
     <style>
-    .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
+    /* Отступ 3.5rem вернул шапку на место */
+    .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
     .stApp { background-color: #9ba4b5; }
     * { direction: rtl !important; text-align: right !important; }
     .stTextInput input, .stTextArea textarea, .stSelectbox > div > div { direction: rtl; text-align: right; }
@@ -115,7 +114,10 @@ st.markdown("""
         font-weight: bold; font-size: 18px; border: 2px solid #1e7e34 !important;
     }
 
-    [data-testid="stDataEditor"] { font-size: 16px !important; }
+    /* УВЕЛИЧЕНИЕ ШРИФТОВ ВО ВСЕХ ТАБЛИЦАХ (Сидур, Журнал, Работы) */
+    [data-testid="stDataEditor"] { font-size: 18px !important; font-weight: bold !important; }
+    th { font-size: 16px !important; text-align: right !important; }
+
     .sidur-container { overflow-x: auto; border: 3px solid black; background-color: white; }
     </style>
 """, unsafe_allow_html=True)
@@ -229,10 +231,8 @@ def get_journal_slice(date_str, unit, shift):
     while len(records) < 6:
         records.append({'Hour': '', 'Description': ''})
 
-    # ЗЕРКАЛИМ КОЛОНКИ: Сначала описание (слева в LTR), потом час (справа в LTR). 
-    # В итоге час визуально будет справа, как положено в RTL.
-    out = pd.DataFrame(records[:6])[['Description', 'Hour']]
-    out.columns = ['תיאור התקלה / עבודה', 'שעה']
+    out = pd.DataFrame(records[:6])[['Hour', 'Description']]
+    out.columns = ['שעה', 'תיאור התקלה / עבודה']
     return out
 
 def save_all_journal_grids(date_str, dfs_list):
@@ -275,13 +275,9 @@ def load_jobs_db():
             done = False
             while not done: _, done = downloader.next_chunk()
             fh.seek(0)
-            df_jobs = pd.read_excel(fh).fillna("")
-            # Зеркалим для интерфейса
-            if "מספר" in df_jobs.columns:
-                return df_jobs[["משימות ופעולות לביצוע", "מספר"]]
-            return df_jobs
+            return pd.read_excel(fh).fillna("")
         except: pass
-    return pd.DataFrame({"משימות ופעולות לביצוע": ["" for _ in range(15)], "מספר": [i for i in range(1, 16)]})
+    return pd.DataFrame({"מספר": [i for i in range(1, 16)], "משימות ופעולות לביצוע": ["" for _ in range(15)]})
 
 def draw_turbine_block(unit_name, section_num, date_str):
     c_morn, c_night = st.columns(2)
@@ -294,6 +290,9 @@ def draw_turbine_block(unit_name, section_num, date_str):
         "תיאור התקלה / עבודה": st.column_config.TextColumn("תיאור התקלה / עבודה", width="large")
     }
 
+    # ИСПОЛЬЗУЕМ column_order ДЛЯ ВИЗУАЛЬНОГО РАЗВОРОТА (Без разрушения датафрейма)
+    visual_order = ["תיאור התקלה / עבודה", "שעה"]
+
     with c_morn:
         st.markdown(f"""
         <div style="background-color:#d35400; color:white; padding:4px; display:flex; border: 2px solid black; border-bottom: none; align-items:center;">
@@ -302,7 +301,7 @@ def draw_turbine_block(unit_name, section_num, date_str):
             <div style="flex:1;"></div>
         </div>
         """, unsafe_allow_html=True)
-        ed_m = st.data_editor(df_m, key=f"m_{section_num}_{date_str}", use_container_width=True, height=170, hide_index=True, column_config=config)
+        ed_m = st.data_editor(df_m, key=f"m_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_order=visual_order, column_config=config)
 
     with c_night:
         st.markdown(f"""
@@ -312,19 +311,18 @@ def draw_turbine_block(unit_name, section_num, date_str):
             <div style="flex:1;"></div>
         </div>
         """, unsafe_allow_html=True)
-        ed_n = st.data_editor(df_n, key=f"n_{section_num}_{date_str}", use_container_width=True, height=170, hide_index=True, column_config=config)
+        ed_n = st.data_editor(df_n, key=f"n_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_order=visual_order, column_config=config)
 
     return (unit_name, 'Morning', ed_m), (unit_name, 'Night', ed_n)
 
-# ЖЕСТКАЯ РАСКРАСКА И ШРИФТЫ ДЛЯ СИДУРА
+# ЖЕСТКАЯ РАСКРАСКА СИДУРА (Без шрифтов, чтобы Стримлит не ломался)
 def colorize_schedule(val):
     v = str(val).split('.')[0].strip()
-    style = "font-size: 18px; font-weight: bold; text-align: center; "
-    if v == '1': return style + 'background-color: #a9dfbf; color: black;'
-    elif v == '2': return style + 'background-color: #abb2b9; color: black;'
-    elif v in ['8', '9']: return style + 'background-color: #f9e79f; color: black;'
-    elif v in ['ח', 'מ']: return style + 'background-color: #f5b7b1; color: black;'
-    return style + 'color: black;'
+    if v == '1': return 'background-color: #a9dfbf; color: black;'
+    elif v == '2': return 'background-color: #abb2b9; color: black;'
+    elif v in ['8', '9']: return 'background-color: #f9e79f; color: black;'
+    elif v in ['ח', 'מ']: return 'background-color: #f5b7b1; color: black;'
+    return 'color: black;'
 
 migrate_old_logs()
 
@@ -392,20 +390,19 @@ with tab_sch:
             cleaned_data = [[str(val).replace('.0', '') if val != "" else "" for val in row] for row in raw_matrix]
             
             df_clean = pd.DataFrame(cleaned_data)
-            # РАЗВОРОТ КОЛОНОК ДЛЯ UI (LTR -> RTL)
-            df_ui = df_clean[df_clean.columns[::-1]]
             
-            try: styled_df = df_ui.style.map(colorize_schedule)
-            except AttributeError: styled_df = df_ui.style.applymap(colorize_schedule)
+            try: styled_df = df_clean.style.map(colorize_schedule)
+            except AttributeError: styled_df = df_clean.style.applymap(colorize_schedule)
             
-            edited_schedule = st.data_editor(styled_df, use_container_width=True, height=600, hide_index=True)
+            # Визуальный разворот + фиксация ширины первой колонки с именами
+            rev_cols = list(df_clean.columns)[::-1]
+            sch_config = {0: st.column_config.TextColumn("שם", width="medium")}
+
+            edited_schedule = st.data_editor(styled_df, use_container_width=True, height=600, hide_index=True, column_order=rev_cols, column_config=sch_config)
             
             if st.button("💾 שמור שינויים בענן (Google Drive)", type="primary", use_container_width=True):
-                # РАЗВОРОТ КОЛОНОК ОБРАТНО ДЛЯ СОХРАНЕНИЯ В EXCEL
-                edited_schedule_save = edited_schedule[df_clean.columns]
-                
                 out_fh = io.BytesIO()
-                edited_schedule_save.to_excel(out_fh, index=False, header=False)
+                edited_schedule.to_excel(out_fh, index=False, header=False)
                 out_fh.seek(0)
                 media = MediaIoBaseUpload(out_fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
                 drive_service.files().update(fileId=active_sch_id, media_body=media).execute()
@@ -432,9 +429,10 @@ with tab_jobs:
         "משימות ופעולות לביצוע": st.column_config.TextColumn("משימות ופעולות לביצוע", width="large")
     }
     
-    edited_df = st.data_editor(df_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True, column_config=config_jobs)
+    # Визуальный разворот колонок через column_order
+    visual_order_jobs = ["משימות ופעולות לביצוע", "מספר"]
+    edited_df = st.data_editor(df_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True, column_order=visual_order_jobs, column_config=config_jobs)
     
-    # БЛОК КНОПОК
     col_save, col_send, col_addr = st.columns([2, 2, 6])
     
     with col_save:
@@ -454,11 +452,9 @@ with tab_jobs:
             st.success("נשמר בהצלחה ב-Google Drive!")
             
     with col_send:
-        # Убрана кнопка загрузки, поставлена кнопка отправки на почту
         btn_send = st.button("✉️ שלח למייל", use_container_width=True)
         
     with col_addr:
-        # Выпадающий список адресов
         target_email = st.selectbox(
             "לשלוח עבודות ל:",
             ["wider71@gmail.com"],
