@@ -88,56 +88,56 @@ def send_jobs_email(to_email, data_list, date_str):
     except Exception as e:
         return False, f"שגיאה вשרת הדואר: {str(e)}"
 
-# --- 3. ТОТАЛЬНЫЙ CSS СТИЛЬ (ПИКСЕЛЬНАЯ СЕТКА) ---
+# --- 3. ТОТАЛЬНОЕ УНИЧТОЖЕНИЕ ПУСТЫХ ПРОСТРАНСТВ (CSS) ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
     .stApp { background-color: #9ba4b5; }
     * { direction: rtl !important; text-align: right !important; }
     
-    /* Схлопывание фабричных отступов Streamlit для создания эффекта таблицы */
-    .element-container, div[data-testid="stVerticalBlock"] > div {
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
-    }
-    div[data-testid="sttext_input"] {
-        margin-bottom: -1px !important;
-    }
-    div[data-testid="column"] {
-        padding: 0px 2px !important;
+    /* 1. УБИВАЕМ ВСЕ ЗАЗОРЫ STREAMLIT МЕЖДУ СТРОКАМИ И КОЛОНКАМИ */
+    div[data-testid="stVerticalBlock"] { gap: 0rem !important; }
+    div[data-testid="stHorizontalBlock"] { gap: 0rem !important; align-items: stretch !important; }
+    
+    /* 2. УБИВАЕМ ЛИШНИЕ МАРДЖИНЫ И НЕВИДИМЫЕ ЛЕЙБЛЫ */
+    div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; }
+    label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
+    
+    /* 3. ДИЗАЙН EXCEL-ЯЧЕЕК (ЕДИНЫЙ ДЛЯ ВСЕХ ПОЛЕЙ ВВОДА) */
+    div[data-testid="stTextInput"] div[data-baseweb="input"] {
+        border-radius: 0px !important; /* Квадратные углы */
+        min-height: 38px !important;
+        height: 38px !important;
+        background-color: #fdfaf6 !important; /* Приятный песочный фон для всех ячеек */
+        border: 1px solid #7f8c8d !important;
+        margin-top: -1px !important; /* Наложение рамок, чтобы скрыть двойные линии */
     }
     
-    /* Форсированное выравнивание текста внутри ячеек */
+    /* ЖЕСТКО ПРИБИВАЕМ ТЕКСТ ВПРАВО */
     div[data-testid="stTextInput"] input {
         direction: rtl !important;
         text-align: right !important;
         font-size: 16px !important;
         font-weight: bold !important;
-        height: 32px !important;
-        border-radius: 0px !important;
-        border: 1px solid #444444 !important;
+        color: #000000 !important;
+        padding-right: 8px !important;
     }
-    
-    /* Песочные ячейки для Журнала */
-    .journal-box input { background-color: #fdf5e6 !important; color: black !important; }
-    
-    /* Голубые ячейки для Работ */
-    .jobs-box input { background-color: #ebf5fb !important; color: black !important; }
-    
-    /* Статический маркер номера строки в Работах */
+
+    /* 4. КРАСИВЫЙ БЛОК ДЛЯ НОМЕРОВ (עבודות) */
     .num-box {
         background-color: #2c3e50 !important;
         color: white !important;
         text-align: center !important;
         font-weight: bold !important;
-        height: 32px !important;
-        line-height: 32px !important;
-        border: 1px solid #444444 !important;
+        height: 38px !important;
+        line-height: 38px !important;
+        border: 1px solid #7f8c8d !important;
         margin: 0px !important;
         font-size: 16px !important;
+        margin-top: -1px !important;
     }
 
-    .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 5px;}
+    .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
     .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
     .stButton button[kind="primary"] { background-color: #28a745 !important; color: white !important; font-weight: bold; font-size: 18px; border: 2px solid #1e7e34 !important; }
@@ -237,7 +237,7 @@ def colorize_schedule(val):
 tab_log, tab_sch, tab_jobs = st.tabs(["דוח משמרת", "סידור", "עבודות היום"])
 
 # ==========================================
-# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ (EXCEL-МАТРИЦА)
+# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ (МОНОЛИТНАЯ СЕТКА)
 # ==========================================
 with tab_log:
     col_logo, col_title, col_cal_r, col_cal_m, col_cal_l = st.columns([1, 4, 1.2, 1.8, 1.2])
@@ -252,6 +252,8 @@ with tab_log:
         if new_date != st.session_state.log_date: st.session_state.log_date = new_date; st.rerun()
     with col_cal_l:
         if st.button("יום קודם ◀", type="primary", use_container_width=True): st.session_state.log_date -= timedelta(days=1); st.rerun()
+
+    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
     active_sch_id, sch_name = get_schedule_file_drive(st.session_state.log_date.month)
     s1_names, s2_names = get_operators(active_sch_id, st.session_state.log_date.day)
@@ -269,41 +271,38 @@ with tab_log:
 
     date_str = st.session_state.log_date.strftime("%Y-%m-%d")
     units = [('טורבינה 1', 1), ('טורבינה 2', 2), ('טורבינה קיטורית', 3)]
-    
     saved_inputs = {}
     
     for u_name, u_num in units:
-        st.markdown(f'<div style="height:5px;"></div>', unsafe_allow_html=True)
-        c_morn, c_night = st.columns(2)
+        st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
+        # 3 колонки: Левая смена, ПУСТАЯ разделительная, Правая смена
+        c_morn, c_space, c_night = st.columns([10, 0.5, 10])
         
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_morn:
-            st.markdown(f'<div style="background-color:#d35400; color:white; padding:4px; text-align:center; font-weight:bold; border:1px solid black; font-size:14px; margin-bottom:1px;">{u_num}. {u_name} - משמרת בוקр</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background-color:#d35400; color:white; padding:5px; text-align:center; font-weight:bold; border:1px solid #7f8c8d; font-size:15px; margin-bottom:-1px;">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
             for idx in range(6):
-                col_d, col_h = st.columns([12, 2])
+                # 12 частей на описание, 3 части на время
+                col_d, col_h = st.columns([12, 3])
                 with col_h:
-                    h_val = st.text_input("שעה", value=m_data[idx].get('Hour',''), key=f"h_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                    h_val = st.text_input(f"שעה {idx}", value=m_data[idx].get('Hour',''), key=f"h_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with col_d:
-                    st.markdown('<div class="journal-box">', unsafe_allow_html=True)
-                    d_val = st.text_input("תיאור", value=m_data[idx].get('Description',''), key=f"d_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    d_val = st.text_input(f"תיאור {idx}", value=m_data[idx].get('Description',''), key=f"d_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 saved_inputs[(u_name, 'Morning', idx)] = (h_val, d_val)
                 
         with c_night:
-            st.markdown(f'<div style="background-color:#2980b9; color:white; padding:4px; text-align:center; font-weight:bold; border:1px solid black; font-size:14px; margin-bottom:1px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background-color:#2980b9; color:white; padding:5px; text-align:center; font-weight:bold; border:1px solid #7f8c8d; font-size:15px; margin-bottom:-1px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
             for idx in range(6):
-                col_d, col_h = st.columns([12, 2])
+                col_d, col_h = st.columns([12, 3])
                 with col_h:
-                    h_val = st.text_input("שעה", value=n_data[idx].get('Hour',''), key=f"h_n_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                    h_val = st.text_input(f"שעה n{idx}", value=n_data[idx].get('Hour',''), key=f"h_n_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with col_d:
-                    st.markdown('<div class="journal-box">', unsafe_allow_html=True)
-                    d_val = st.text_input("תיאור", value=n_data[idx].get('Description',''), key=f"d_n_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    d_val = st.text_input(f"תיאור n{idx}", value=n_data[idx].get('Description',''), key=f"d_n_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 saved_inputs[(u_name, 'Night', idx)] = (h_val, d_val)
 
-    st.markdown(f'<div style="height:10px;"></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     if st.button("💾 שמור כל השינויים ביומן", type="primary", use_container_width=True):
         db = load_journal_db()
         db = db[db['Date'] != date_str]
@@ -353,7 +352,7 @@ with tab_sch:
 
 
 # ==========================================
-# ОКНО 3: РАБОТЫ НА СЕГОДНЯ (EXCEL-МАТРИЦА)
+# ОКНО 3: РАБОТЫ НА СЕГОДНЯ (ИДЕАЛЬНАЯ СЕТКА)
 # ==========================================
 with tab_jobs:
     st.markdown("<h3>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
@@ -363,19 +362,19 @@ with tab_jobs:
     
     saved_jobs_inputs = []
     
-    # Сетка из 15 плотных строк, номер мертво зафиксирован справа
     for i in range(15):
+        # 1 часть на номер, 14 частей на текст
         col_num, col_task = st.columns([1, 14])
         with col_num:
             st.markdown(f'<div class="num-box">{i+1}</div>', unsafe_allow_html=True)
         with col_task:
-            st.markdown('<div class="jobs-box">', unsafe_allow_html=True)
             t_val = st.text_input(f"משימה {i+1}", value=loaded_jobs[i], key=f"job_input_{i}_{date_str}", label_visibility="collapsed")
-            st.markdown('</div>', unsafe_allow_html=True)
         saved_jobs_inputs.append({"מספר": str(i+1), "משימות ופעולות לביצוע": t_val})
         
-    st.markdown(f'<div style="height:10px;"></div>', unsafe_allow_html=True)
-    col_save, col_send, col_addr = st.columns([2, 2, 6])
+    st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
+    
+    # Кнопки с аккуратными отступами
+    col_save, s1, col_send, s2, col_addr = st.columns([3, 0.5, 3, 0.5, 6])
     
     with col_save:
         if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True):
@@ -387,7 +386,7 @@ with tab_jobs:
                 if file_id: drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
                 else: drive_service.files().create(body={'name': JOBS_FILE, 'parents': [FOLDER_ID]}, media_body=media, supportsAllDrives=True).execute()
                 st.cache_data.clear()
-                st.success("נשמר בהצלחה ב-Google Drive!")
+                st.success("העבודות נשמרו בהצלחה!")
                 st.rerun()
             except Exception as e:
                 st.error(f"שגיאה בשמירה: {e}")
