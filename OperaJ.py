@@ -52,7 +52,7 @@ def get_file_id(filename):
     items = results.get('files', [])
     return items[0]['id'] if items else None
 
-# --- SMTP EMAIL ENGINE (Идеальный вариант) ---
+# --- SMTP EMAIL ENGINE ---
 def send_jobs_email(to_email, df_jobs, date_str):
     from_email = "mashav.journal@gmail.com"
     password = st.secrets.get("EMAIL_PASS", "").replace(" ", "")
@@ -242,12 +242,13 @@ def draw_turbine_block(unit_name, section_num, date_str):
     df_m = get_journal_slice(date_str, unit_name, 'Morning')
     df_n = get_journal_slice(date_str, unit_name, 'Night')
     
-    # Жесткий RTL-стиль прямо в ячейки
-    styled_m = df_m.style.map(lambda _: 'background-color: #fdf5e6; color: black;').set_properties(**{'text-align': 'right', 'direction': 'rtl'})
-    styled_n = df_n.style.map(lambda _: 'background-color: #fdf5e6; color: black;').set_properties(**{'text-align': 'right', 'direction': 'rtl'})
+    # Возвращаем простую заливку цветом без конфликтующих свойств
+    styled_m = df_m.style.map(lambda _: 'background-color: #fdf5e6; color: black;')
+    styled_n = df_n.style.map(lambda _: 'background-color: #fdf5e6; color: black;')
     
+    # Жесткая фиксация ширины "שעה" в 60 пикселей
     config = {
-        "שעה": st.column_config.TextColumn("שעה", width="small"),
+        "שעה": st.column_config.TextColumn("שעה", width=60),
         "תיאור התקלה / עבודה": st.column_config.TextColumn("תיאור התקלה / עבודה", width="large")
     }
 
@@ -285,7 +286,7 @@ def colorize_schedule(val):
 tab_log, tab_sch, tab_jobs = st.tabs(["דוח משמרת", "סידור", "עבודות היום"])
 
 # ==========================================
-# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ (ОРИГИНАЛЬНАЯ СЕТКА)
+# ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ
 # ==========================================
 with tab_log:
     col_logo, col_title, col_cal_r, col_cal_m, col_cal_l = st.columns([1, 4, 1.2, 1.8, 1.2])
@@ -329,7 +330,7 @@ with tab_log:
 
 
 # ==========================================
-# ОКНО 2: РАСПИСАНИЕ (ИДЕАЛЬНЫЙ СТАТИЧНЫЙ ВЬЮВЕР)
+# ОКНО 2: РАСПИСАНИЕ (СИДУР)
 # ==========================================
 with tab_sch:
     st.markdown("<h3>טבלת סידור עבודה</h3>", unsafe_allow_html=True)
@@ -356,7 +357,7 @@ with tab_sch:
 
 
 # ==========================================
-# ОКНО 3: РАБОТЫ НА СЕГОДНЯ (ОРИГИНАЛЬНАЯ СЕТКА)
+# ОКНО 3: РАБОТЫ НА СЕГОДНЯ
 # ==========================================
 with tab_jobs:
     st.markdown("<h3>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
@@ -364,10 +365,11 @@ with tab_jobs:
     df_jobs = load_jobs_db()
     df_ui_jobs = df_jobs[["משימות ופעולות לביצוע", "מספר"]]
     
-    styled_jobs = df_ui_jobs.style.map(lambda _: 'background-color: #ebf5fb; color: black;').set_properties(**{'text-align': 'right', 'direction': 'rtl'})
+    styled_jobs = df_ui_jobs.style.map(lambda _: 'background-color: #ebf5fb; color: black;')
     
+    # Жесткая фиксация ширины "מספר" в 50 пикселей + запрет на редактирование
     config_jobs = {
-        "מספר": st.column_config.TextColumn("מספר", width="small", disabled=True),
+        "מספר": st.column_config.TextColumn("מספר", width=50, disabled=True),
         "משימות ופעולות לביצוע": st.column_config.TextColumn("משימות ופעולות לביצוע", width="large")
     }
     
