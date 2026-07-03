@@ -4,6 +4,10 @@ from datetime import datetime, timedelta
 import os
 import io
 import json
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
@@ -51,11 +55,53 @@ def get_file_id(filename):
     items = results.get('files', [])
     return items[0]['id'] if items else None
 
+# --- ОТПРАВКА EMAIL ---
+def send_jobs_email(to_email, df_jobs, date_str):
+    from_email = "mashav.journal@gmail.com"
+    password = st.secrets.get("EMAIL_PASS", "")
+    if not password:
+        return False, "חסר סיסמת אימייל (EMAIL_PASS) ב-Secrets"
+    
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = to_email
+    msg['Subject'] = f"עבודות מתוכננות להיום - {date_str}"
+    
+    # Разворачиваем колонки обратно для красивого отчета, если нужно
+    df_html = df_jobs[["מספר", "משימות ופעולות לביצוע"]] if "מספר" in df_jobs.columns else df_jobs
+    html_table = df_html.to_html(index=False, justify='right')
+    html_body = f"""
+    <html dir="rtl">
+    <body>
+        <h2>עבודות מתוכננות להיום ({date_str})</h2>
+        {html_table}
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(html_body, 'html'))
+    
+    excel_buffer = io.BytesIO()
+    df_html.to_excel(excel_buffer, index=False)
+    excel_buffer.seek(0)
+    part = MIMEApplication(excel_buffer.read(), Name=f"Jobs_{date_str}.xlsx")
+    part['Content-Disposition'] = f'attachment; filename="Jobs_{date_str}.xlsx"'
+    msg.attach(part)
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(from_email, password)
+        server.send_message(msg)
+        server.quit()
+        return True, "נשלח בהצלחה!"
+    except Exception as e:
+        return False, f"שגיאה בשליחה: {e}"
+
 
 # --- 3. ГЛОБАЛЬНЫЙ CSS СТИЛЬ ---
 st.markdown("""
     <style>
-    .block-container { padding-top: 3rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
+    .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
     .stApp { background-color: #9ba4b5; }
     * { direction: rtl !important; text-align: right !important; }
     .stTextInput input, .stTextArea textarea, .stSelectbox > div > div { direction: rtl; text-align: right; }
@@ -183,8 +229,10 @@ def get_journal_slice(date_str, unit, shift):
     while len(records) < 6:
         records.append({'Hour': '', 'Description': ''})
 
-    out = pd.DataFrame(records[:6])[['Hour', 'Description']]
-    out.columns = ['שעה', 'תיאור התקלה / עבודה']
+    # ЗЕРКАЛИМ КОЛОНКИ: Сначала описание (слева в LTR), потом час (справа в LTR). 
+    # В итоге час визуально будет справа, как положено в RTL.
+    out = pd.DataFrame(records[:6])[['Description', 'Hour']]
+    out.columns = ['תיאור התקלה / עבודה', 'שעה']
     return out
 
 def save_all_journal_grids(date_str, dfs_list):
@@ -227,9 +275,13 @@ def load_jobs_db():
             done = False
             while not done: _, done = downloader.next_chunk()
             fh.seek(0)
-            return pd.read_excel(fh).fillna("")
+            df_jobs = pd.read_excel(fh).fillna("")
+            # Зеркалим для интерфейса
+            if "מספר" in df_jobs.columns:
+                return df_jobs[["משימות ופעולות לביצוע", "מספר"]]
+            return df_jobs
         except: pass
-    return pd.DataFrame({"מספר": [i for i in range(1, 16)], "משימות ופעולות לביצוע": ["" for _ in range(15)]})
+    return pd.DataFrame({"משימות ופעולות לביצוע": ["" for _ in range(15)], "מספר": [i for i in range(1, 16)]})
 
 def draw_turbine_block(unit_name, section_num, date_str):
     c_morn, c_night = st.columns(2)
@@ -250,7 +302,7 @@ def draw_turbine_block(unit_name, section_num, date_str):
             <div style="flex:1;"></div>
         </div>
         """, unsafe_allow_html=True)
-        ed_m = st.data_editor(df_m, key=f"m_{section_num}_{date_str}", use_container_width=True, height=230, hide_index=True, column_config=config)
+        ed_m = st.data_editor(df_m, key=f"m_{section_num}_{date_str}", use_container_width=True, height=170, hide_index=True, column_config=config)
 
     with c_night:
         st.markdown(f"""
@@ -260,20 +312,20 @@ def draw_turbine_block(unit_name, section_num, date_str):
             <div style="flex:1;"></div>
         </div>
         """, unsafe_allow_html=True)
-        ed_n = st.data_editor(df_n, key=f"n_{section_num}_{date_str}", use_container_width=True, height=230, hide_index=True, column_config=config)
+        ed_n = st.data_editor(df_n, key=f"n_{section_num}_{date_str}", use_container_width=True, height=170, hide_index=True, column_config=config)
 
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     return (unit_name, 'Morning', ed_m), (unit_name, 'Night', ed_n)
 
+# ЖЕСТКАЯ РАСКРАСКА И ШРИФТЫ ДЛЯ СИДУРА
 def colorize_schedule(val):
     v = str(val).split('.')[0].strip()
-    if v == '1': return 'background-color: #a9dfbf; color: black; font-weight: bold;'
-    elif v == '2': return 'background-color: #abb2b9; color: black; font-weight: bold;'
-    elif v in ['8', '9']: return 'background-color: #f9e79f; color: black;'
-    elif v in ['ח', 'מ']: return 'background-color: #f5b7b1; color: black; font-weight: bold;'
-    return ''
+    style = "font-size: 18px; font-weight: bold; text-align: center; "
+    if v == '1': return style + 'background-color: #a9dfbf; color: black;'
+    elif v == '2': return style + 'background-color: #abb2b9; color: black;'
+    elif v in ['8', '9']: return style + 'background-color: #f9e79f; color: black;'
+    elif v in ['ח', 'מ']: return style + 'background-color: #f5b7b1; color: black;'
+    return style + 'color: black;'
 
-# Запуск миграции старых данных
 migrate_old_logs()
 
 # --- 5. ВКЛАДКИ ОКОН ---
@@ -300,7 +352,7 @@ with tab_log:
     s1_names, s2_names = get_operators(active_sch_id, st.session_state.log_date.day)
 
     st.markdown(f"""
-        <div style="display: flex; gap: 10px; margin-top: 2px; margin-bottom: 10px;">
+        <div style="display: flex; gap: 10px; margin-top: 2px; margin-bottom: 5px;">
             <div style="flex: 1; border: 2px solid #2c3e50; padding: 4px 12px; background-color: #f8f9fa; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
                 <b style="color: #333; font-size: 14px;">🌞 משמרת בוקר:</b> <span style="font-size: 16px; font-weight: bold; color: black;">{', '.join(s1_names)}</span>
             </div>
@@ -322,7 +374,7 @@ with tab_log:
         st.success("היומן נשמר בענן בהצלחה!")
 
 # ==========================================
-# ОКНО 2: РАСПИСАНИЕ (СИДУР ИЗ G-DRIVE)
+# ОКНО 2: РАСПИСАНИЕ (СИДУР)
 # ==========================================
 with tab_sch:
     st.markdown("<h3>עריכת טבלת סידור עבודה</h3>", unsafe_allow_html=True)
@@ -338,16 +390,22 @@ with tab_sch:
             df_excel = pd.read_excel(fh, header=None).fillna("")
             raw_matrix = df_excel.values.tolist()
             cleaned_data = [[str(val).replace('.0', '') if val != "" else "" for val in row] for row in raw_matrix]
-            df_clean = pd.DataFrame(cleaned_data)
             
-            try: styled_df = df_clean.style.map(colorize_schedule)
-            except AttributeError: styled_df = df_clean.style.applymap(colorize_schedule)
+            df_clean = pd.DataFrame(cleaned_data)
+            # РАЗВОРОТ КОЛОНОК ДЛЯ UI (LTR -> RTL)
+            df_ui = df_clean[df_clean.columns[::-1]]
+            
+            try: styled_df = df_ui.style.map(colorize_schedule)
+            except AttributeError: styled_df = df_ui.style.applymap(colorize_schedule)
             
             edited_schedule = st.data_editor(styled_df, use_container_width=True, height=600, hide_index=True)
             
             if st.button("💾 שמור שינויים בענן (Google Drive)", type="primary", use_container_width=True):
+                # РАЗВОРОТ КОЛОНОК ОБРАТНО ДЛЯ СОХРАНЕНИЯ В EXCEL
+                edited_schedule_save = edited_schedule[df_clean.columns]
+                
                 out_fh = io.BytesIO()
-                edited_schedule.to_excel(out_fh, index=False, header=False)
+                edited_schedule_save.to_excel(out_fh, index=False, header=False)
                 out_fh.seek(0)
                 media = MediaIoBaseUpload(out_fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
                 drive_service.files().update(fileId=active_sch_id, media_body=media).execute()
@@ -368,11 +426,19 @@ with tab_jobs:
     st.markdown("<h3>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
     
     df_jobs = load_jobs_db()
-    edited_df = st.data_editor(df_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True)
     
-    col_save, col_dl, _ = st.columns([2, 2, 6])
+    config_jobs = {
+        "מספר": st.column_config.TextColumn("מספר", width="small"),
+        "משימות ופעולות לביצוע": st.column_config.TextColumn("משימות ופעולות לביצוע", width="large")
+    }
+    
+    edited_df = st.data_editor(df_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True, column_config=config_jobs)
+    
+    # БЛОК КНОПОК
+    col_save, col_send, col_addr = st.columns([2, 2, 6])
+    
     with col_save:
-        if st.button("שמור עבודות (בענן)", type="primary", use_container_width=True):
+        if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True):
             file_id = get_file_id(JOBS_FILE)
             fh = io.BytesIO()
             edited_df.to_excel(fh, index=False)
@@ -387,7 +453,23 @@ with tab_jobs:
             st.cache_data.clear()
             st.success("נשמר בהצלחה ב-Google Drive!")
             
-    with col_dl:
-        buffer = io.BytesIO()
-        edited_df.to_excel(buffer, index=False)
-        st.download_button("📥 שמור בשם (הורד כ-Excel)", data=buffer.getvalue(), file_name=f"Jobs_{st.session_state.log_date.strftime('%Y_%m_%d')}.xlsx", mime="application/vnd.ms-excel", use_container_width=True)
+    with col_send:
+        # Убрана кнопка загрузки, поставлена кнопка отправки на почту
+        btn_send = st.button("✉️ שלח למייל", use_container_width=True)
+        
+    with col_addr:
+        # Выпадающий список адресов
+        target_email = st.selectbox(
+            "לשלוח עבודות ל:",
+            ["wider71@gmail.com"],
+            label_visibility="collapsed"
+        )
+        
+    if btn_send:
+        with st.spinner("שולח..."):
+            date_str_jobs = st.session_state.log_date.strftime("%Y-%m-%d")
+            success, msg = send_jobs_email(target_email, edited_df, date_str_jobs)
+            if success:
+                st.success(msg)
+            else:
+                st.error(msg)
