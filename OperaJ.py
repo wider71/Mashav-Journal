@@ -86,7 +86,7 @@ def send_jobs_email(to_email, data_list, date_str):
         server.quit()
         return True, "הודעה נשלחה בהצלחה למייל!"
     except Exception as e:
-        return False, f"שגיאה вשרת הדואר: {str(e)}"
+        return False, f"שגיאה בשרת הדואר: {str(e)}"
 
 # --- 3. ТОТАЛЬНОЕ УНИЧТОЖЕНИЕ ПУСТЫХ ПРОСТРАНСТВ (CSS) ---
 st.markdown("""
@@ -100,17 +100,17 @@ st.markdown("""
     div[data-testid="stHorizontalBlock"] { gap: 0rem !important; align-items: stretch !important; }
     
     /* 2. УБИВАЕМ ЛИШНИЕ МАРДЖИНЫ И НЕВИДИМЫЕ ЛЕЙБЛЫ */
-    div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; }
+    div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
     /* 3. ДИЗАЙН EXCEL-ЯЧЕЕК (ЕДИНЫЙ ДЛЯ ВСЕХ ПОЛЕЙ ВВОДА) */
     div[data-testid="stTextInput"] div[data-baseweb="input"] {
-        border-radius: 0px !important; /* Квадратные углы */
+        border-radius: 0px !important; 
         min-height: 38px !important;
         height: 38px !important;
-        background-color: #fdfaf6 !important; /* Приятный песочный фон для всех ячеек */
+        background-color: #fdfaf6 !important; 
         border: 1px solid #7f8c8d !important;
-        margin-top: -1px !important; /* Наложение рамок, чтобы скрыть двойные линии */
+        margin-top: -1px !important; 
     }
     
     /* ЖЕСТКО ПРИБИВАЕМ ТЕКСТ ВПРАВО */
@@ -123,14 +123,15 @@ st.markdown("""
         padding-right: 8px !important;
     }
 
-    /* 4. КРАСИВЫЙ БЛОК ДЛЯ НОМЕРОВ (עבודות) */
+    /* 4. КРАСИВЫЙ БЛОК ДЛЯ НОМЕРОВ (עבודות) НА FLEXBOX */
     .num-box {
         background-color: #2c3e50 !important;
         color: white !important;
-        text-align: center !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         font-weight: bold !important;
         height: 38px !important;
-        line-height: 38px !important;
         border: 1px solid #7f8c8d !important;
         margin: 0px !important;
         font-size: 16px !important;
@@ -275,16 +276,15 @@ with tab_log:
     
     for u_name, u_num in units:
         st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
-        # 3 колонки: Левая смена, ПУСТАЯ разделительная, Правая смена
         c_morn, c_space, c_night = st.columns([10, 0.5, 10])
         
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_morn:
-            st.markdown(f'<div style="background-color:#d35400; color:white; padding:5px; text-align:center; font-weight:bold; border:1px solid #7f8c8d; font-size:15px; margin-bottom:-1px;">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
+            # Заголовки на Flexbox (защита от обрезания)
+            st.markdown(f'<div style="background-color:#d35400; color:white; min-height:36px; display:flex; align-items:center; justify-content:center; font-weight:bold; border:1px solid #7f8c8d; border-bottom:none; font-size:15px; margin-bottom:-1px;">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
             for idx in range(6):
-                # 12 частей на описание, 3 части на время
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
                     h_val = st.text_input(f"שעה {idx}", value=m_data[idx].get('Hour',''), key=f"h_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
@@ -293,7 +293,7 @@ with tab_log:
                 saved_inputs[(u_name, 'Morning', idx)] = (h_val, d_val)
                 
         with c_night:
-            st.markdown(f'<div style="background-color:#2980b9; color:white; padding:5px; text-align:center; font-weight:bold; border:1px solid #7f8c8d; font-size:15px; margin-bottom:-1px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background-color:#2980b9; color:white; min-height:36px; display:flex; align-items:center; justify-content:center; font-weight:bold; border:1px solid #7f8c8d; border-bottom:none; font-size:15px; margin-bottom:-1px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
@@ -317,11 +317,13 @@ with tab_log:
         fh = io.BytesIO(); db.to_csv(fh, index=False, encoding='utf-8-sig'); fh.seek(0)
         media = MediaIoBaseUpload(fh, mimetype='text/csv', resumable=True)
         file_id = get_file_id(JOURNAL_DB)
-        if file_id: drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
-        else: drive_service.files().create(body={'name': JOURNAL_DB, 'parents': [FOLDER_ID]}, media_body=media, supportsAllDrives=True).execute()
-        st.cache_data.clear()
-        st.success("היומן נשמר בענן בהצלחה!")
-        st.rerun()
+        if file_id: 
+            drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+            st.cache_data.clear()
+            st.success("היומן נשמר בענן בהצלחה!")
+            st.rerun()
+        else: 
+            st.error("שגיאה 403: קובץ journal_db.csv לא נמצא. נא ליצור קובץ טקסט ריק בשם journal_db.csv ולהעלות אותו לתיקייה בגוגל דרייב.")
 
 
 # ==========================================
@@ -363,7 +365,6 @@ with tab_jobs:
     saved_jobs_inputs = []
     
     for i in range(15):
-        # 1 часть на номер, 14 частей на текст
         col_num, col_task = st.columns([1, 14])
         with col_num:
             st.markdown(f'<div class="num-box">{i+1}</div>', unsafe_allow_html=True)
@@ -373,7 +374,6 @@ with tab_jobs:
         
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
-    # Кнопки с аккуратными отступами
     col_save, s1, col_send, s2, col_addr = st.columns([3, 0.5, 3, 0.5, 6])
     
     with col_save:
@@ -383,11 +383,13 @@ with tab_jobs:
                 fh = io.BytesIO(); df_save.to_excel(fh, index=False); fh.seek(0)
                 media = MediaIoBaseUpload(fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
                 file_id = get_file_id(JOBS_FILE)
-                if file_id: drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
-                else: drive_service.files().create(body={'name': JOBS_FILE, 'parents': [FOLDER_ID]}, media_body=media, supportsAllDrives=True).execute()
-                st.cache_data.clear()
-                st.success("העבודות נשמרו בהצלחה!")
-                st.rerun()
+                if file_id: 
+                    drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+                    st.cache_data.clear()
+                    st.success("העבודות נשמרו בהצלחה!")
+                    st.rerun()
+                else: 
+                    st.error("שגיאה 403: קובץ jobs_internal.xlsx לא נמצא. נא ליצור קובץ אקסל ריק בשם jobs_internal.xlsx ולהעלות אותו לתיקייה בגוגל דרייב.")
             except Exception as e:
                 st.error(f"שגיאה בשמירה: {e}")
             
