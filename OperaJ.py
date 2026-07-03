@@ -95,15 +95,12 @@ st.markdown("""
     .stApp { background-color: #9ba4b5; }
     * { direction: rtl !important; text-align: right !important; }
     
-    /* 1. УБИВАЕМ ВСЕ ЗАЗОРЫ STREAMLIT МЕЖДУ СТРОКАМИ И КОЛОНКАМИ */
     div[data-testid="stVerticalBlock"] { gap: 0rem !important; }
     div[data-testid="stHorizontalBlock"] { gap: 0rem !important; align-items: stretch !important; }
     
-    /* 2. УБИВАЕМ ЛИШНИЕ МАРДЖИНЫ И НЕВИДИМЫЕ ЛЕЙБЛЫ */
     div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
-    /* 3. ДИЗАЙН EXCEL-ЯЧЕЕК (ЕДИНЫЙ ДЛЯ ВСЕХ ПОЛЕЙ ВВОДА) */
     div[data-testid="stTextInput"] div[data-baseweb="input"] {
         border-radius: 0px !important; 
         min-height: 38px !important;
@@ -113,7 +110,6 @@ st.markdown("""
         margin-top: -1px !important; 
     }
     
-    /* ЖЕСТКО ПРИБИВАЕМ ТЕКСТ ВПРАВО */
     div[data-testid="stTextInput"] input {
         direction: rtl !important;
         text-align: right !important;
@@ -123,7 +119,6 @@ st.markdown("""
         padding-right: 8px !important;
     }
 
-    /* 4. КРАСИВЫЙ БЛОК ДЛЯ НОМЕРОВ (עבודות) НА FLEXBOX */
     .num-box {
         background-color: #2c3e50 !important;
         color: white !important;
@@ -282,8 +277,8 @@ with tab_log:
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_morn:
-            # Заголовки на Flexbox (защита от обрезания)
-            st.markdown(f'<div style="background-color:#d35400; color:white; min-height:36px; display:flex; align-items:center; justify-content:center; font-weight:bold; border:1px solid #7f8c8d; border-bottom:none; font-size:15px; margin-bottom:-1px;">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
+            # ИСПРАВЛЕНО: Добавлен padding, убраны конфликтующие стили высоты
+            st.markdown(f'<div style="background-color:#d35400; color:white; padding:10px 0px; text-align:center; font-weight:bold; border:1px solid #7f8c8d; font-size:16px; margin-bottom:0px;">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
@@ -293,7 +288,8 @@ with tab_log:
                 saved_inputs[(u_name, 'Morning', idx)] = (h_val, d_val)
                 
         with c_night:
-            st.markdown(f'<div style="background-color:#2980b9; color:white; min-height:36px; display:flex; align-items:center; justify-content:center; font-weight:bold; border:1px solid #7f8c8d; border-bottom:none; font-size:15px; margin-bottom:-1px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
+            # ИСПРАВЛЕНО: Добавлен padding, убраны конфликтующие стили высоты
+            st.markdown(f'<div style="background-color:#2980b9; color:white; padding:10px 0px; text-align:center; font-weight:bold; border:1px solid #7f8c8d; font-size:16px; margin-bottom:0px;">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
             for idx in range(6):
                 col_d, col_h = st.columns([12, 3])
                 with col_h:
