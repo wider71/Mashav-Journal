@@ -99,7 +99,6 @@ def send_jobs_email(to_email, df_jobs, date_str):
 # --- 3. ГЛОБАЛЬНЫЙ CSS СТИЛЬ ---
 st.markdown("""
     <style>
-    /* Отступ 3.5rem вернул шапку на место */
     .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
     .stApp { background-color: #9ba4b5; }
     * { direction: rtl !important; text-align: right !important; }
@@ -114,7 +113,7 @@ st.markdown("""
         font-weight: bold; font-size: 18px; border: 2px solid #1e7e34 !important;
     }
 
-    /* УВЕЛИЧЕНИЕ ШРИФТОВ ВО ВСЕХ ТАБЛИЦАХ (Сидур, Журнал, Работы) */
+    /* Шрифты для таблиц */
     [data-testid="stDataEditor"] { font-size: 18px !important; font-weight: bold !important; }
     th { font-size: 16px !important; text-align: right !important; }
 
@@ -231,8 +230,10 @@ def get_journal_slice(date_str, unit, shift):
     while len(records) < 6:
         records.append({'Hour': '', 'Description': ''})
 
-    out = pd.DataFrame(records[:6])[['Hour', 'Description']]
-    out.columns = ['שעה', 'תיאור התקלה / עבודה']
+    out = pd.DataFrame(records[:6])
+    # Физически меняем местами: описание слева, часы справа (для отрисовки в UI)
+    out = out[['Description', 'Hour']]
+    out.columns = ['תיאור התקלה / עבודה', 'שעה']
     return out
 
 def save_all_journal_grids(date_str, dfs_list):
@@ -275,9 +276,13 @@ def load_jobs_db():
             done = False
             while not done: _, done = downloader.next_chunk()
             fh.seek(0)
-            return pd.read_excel(fh).fillna("")
+            df_jobs = pd.read_excel(fh).fillna("")
+            df_jobs.columns = df_jobs.columns.astype(str)
+            if "מספר" not in df_jobs.columns: df_jobs["מספר"] = [str(i) for i in range(1, 16)]
+            if "משימות ופעולות לביצוע" not in df_jobs.columns: df_jobs["משימות ופעולות לביצוע"] = ["" for _ in range(15)]
+            return df_jobs
         except: pass
-    return pd.DataFrame({"מספר": [i for i in range(1, 16)], "משימות ופעולות לביצוע": ["" for _ in range(15)]})
+    return pd.DataFrame({"מספר": [str(i) for i in range(1, 16)], "משימות ופעולות לביצוע": ["" for _ in range(15)]})
 
 def draw_turbine_block(unit_name, section_num, date_str):
     c_morn, c_night = st.columns(2)
@@ -290,9 +295,6 @@ def draw_turbine_block(unit_name, section_num, date_str):
         "תיאור התקלה / עבודה": st.column_config.TextColumn("תיאור התקלה / עבודה", width="large")
     }
 
-    # ИСПОЛЬЗУЕМ column_order ДЛЯ ВИЗУАЛЬНОГО РАЗВОРОТА (Без разрушения датафрейма)
-    visual_order = ["תיאור התקלה / עבודה", "שעה"]
-
     with c_morn:
         st.markdown(f"""
         <div style="background-color:#d35400; color:white; padding:4px; display:flex; border: 2px solid black; border-bottom: none; align-items:center;">
@@ -301,7 +303,7 @@ def draw_turbine_block(unit_name, section_num, date_str):
             <div style="flex:1;"></div>
         </div>
         """, unsafe_allow_html=True)
-        ed_m = st.data_editor(df_m, key=f"m_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_order=visual_order, column_config=config)
+        ed_m = st.data_editor(df_m, key=f"m_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_config=config)
 
     with c_night:
         st.markdown(f"""
@@ -311,11 +313,11 @@ def draw_turbine_block(unit_name, section_num, date_str):
             <div style="flex:1;"></div>
         </div>
         """, unsafe_allow_html=True)
-        ed_n = st.data_editor(df_n, key=f"n_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_order=visual_order, column_config=config)
+        ed_n = st.data_editor(df_n, key=f"n_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_config=config)
 
     return (unit_name, 'Morning', ed_m), (unit_name, 'Night', ed_n)
 
-# ЖЕСТКАЯ РАСКРАСКА СИДУРА (Без шрифтов, чтобы Стримлит не ломался)
+# Раскраска Сидура
 def colorize_schedule(val):
     v = str(val).split('.')[0].strip()
     if v == '1': return 'background-color: #a9dfbf; color: black;'
@@ -390,19 +392,27 @@ with tab_sch:
             cleaned_data = [[str(val).replace('.0', '') if val != "" else "" for val in row] for row in raw_matrix]
             
             df_clean = pd.DataFrame(cleaned_data)
+            # Жестко переводим названия колонок в текст, чтобы Стримлит не крашился
+            df_clean.columns = df_clean.columns.astype(str)
             
-            try: styled_df = df_clean.style.map(colorize_schedule)
-            except AttributeError: styled_df = df_clean.style.applymap(colorize_schedule)
-            
-            # Визуальный разворот + фиксация ширины первой колонки с именами
+            # Физический разворот базы
             rev_cols = list(df_clean.columns)[::-1]
-            sch_config = {0: st.column_config.TextColumn("שם", width="medium")}
+            df_ui = df_clean[rev_cols]
+            
+            try: styled_df = df_ui.style.map(colorize_schedule)
+            except AttributeError: styled_df = df_ui.style.applymap(colorize_schedule)
+            
+            # Имя оператора теперь в колонке с названием "0" (так как мы перевернули и перевели в текст)
+            sch_config = {"0": st.column_config.TextColumn("שם", width="medium")}
 
-            edited_schedule = st.data_editor(styled_df, use_container_width=True, height=600, hide_index=True, column_order=rev_cols, column_config=sch_config)
+            edited_schedule = st.data_editor(styled_df, use_container_width=True, height=600, hide_index=True, column_config=sch_config)
             
             if st.button("💾 שמור שינויים בענן (Google Drive)", type="primary", use_container_width=True):
+                # Возвращаем матрицу в исходный LTR вид перед сохранением в Excel
+                edited_schedule_save = edited_schedule[df_clean.columns]
+                
                 out_fh = io.BytesIO()
-                edited_schedule.to_excel(out_fh, index=False, header=False)
+                edited_schedule_save.to_excel(out_fh, index=False, header=False)
                 out_fh.seek(0)
                 media = MediaIoBaseUpload(out_fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
                 drive_service.files().update(fileId=active_sch_id, media_body=media).execute()
@@ -424,22 +434,26 @@ with tab_jobs:
     
     df_jobs = load_jobs_db()
     
+    # Физический разворот
+    df_ui_jobs = df_jobs[["משימות ופעולות לביצוע", "מספר"]]
+    
     config_jobs = {
         "מספר": st.column_config.TextColumn("מספר", width="small"),
         "משימות ופעולות לביצוע": st.column_config.TextColumn("משימות ופעולות לביצוע", width="large")
     }
     
-    # Визуальный разворот колонок через column_order
-    visual_order_jobs = ["משימות ופעולות לביצוע", "מספר"]
-    edited_df = st.data_editor(df_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True, column_order=visual_order_jobs, column_config=config_jobs)
+    edited_df = st.data_editor(df_ui_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True, column_config=config_jobs)
     
     col_save, col_send, col_addr = st.columns([2, 2, 6])
     
     with col_save:
         if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True):
+            # Возвращаем колонки на место перед сохранением
+            df_save_jobs = edited_df[["מספר", "משימות ופעולות לביצוע"]]
+            
             file_id = get_file_id(JOBS_FILE)
             fh = io.BytesIO()
-            edited_df.to_excel(fh, index=False)
+            df_save_jobs.to_excel(fh, index=False)
             fh.seek(0)
             media = MediaIoBaseUpload(fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
             if file_id:
@@ -464,7 +478,8 @@ with tab_jobs:
     if btn_send:
         with st.spinner("שולח..."):
             date_str_jobs = st.session_state.log_date.strftime("%Y-%m-%d")
-            success, msg = send_jobs_email(target_email, edited_df, date_str_jobs)
+            df_save_jobs = edited_df[["מספר", "משימות ופעולות לביצוע"]]
+            success, msg = send_jobs_email(target_email, df_save_jobs, date_str_jobs)
             if success:
                 st.success(msg)
             else:
