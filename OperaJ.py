@@ -51,7 +51,7 @@ except Exception as e:
 
 def get_file_id(filename):
     query = f"'{FOLDER_ID}' in parents and name = '{filename}' and trashed = false"
-    results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+    results = drive_service.files().list(q=query, fields="files(id, name)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
     items = results.get('files', [])
     return items[0]['id'] if items else None
 
@@ -60,7 +60,7 @@ def send_jobs_email(to_email, df_jobs, date_str):
     from_email = "mashav.journal@gmail.com"
     password = st.secrets.get("EMAIL_PASS", "")
     if not password:
-        return False, "חסר סיסמת אימייל (EMAIL_PASS) ב-Secrets"
+        return False, "חסר סיסמת אימייל (EMAIL_PASS) ב-Secrets. Ошибка: пароль не найден."
     
     msg = MIMEMultipart()
     msg['From'] = from_email
@@ -70,7 +70,7 @@ def send_jobs_email(to_email, df_jobs, date_str):
     html_table = df_jobs.to_html(index=False, justify='right')
     html_body = f"""
     <html dir="rtl">
-    <body>
+    <body style="font-family: Arial, sans-serif;">
         <h2>עבודות מתוכננות להיום ({date_str})</h2>
         {html_table}
     </body>
@@ -91,10 +91,9 @@ def send_jobs_email(to_email, df_jobs, date_str):
         server.login(from_email, password)
         server.send_message(msg)
         server.quit()
-        return True, "נשלח בהצלחה!"
+        return True, "נשלח למייל בהצלחה!"
     except Exception as e:
-        return False, f"שגיאה בשליחה: {e}"
-
+        return False, f"שגיאה טכנית בשליחה (Скинь мне эту ошибку): {str(e)}"
 
 # --- 3. ГЛОБАЛЬНЫЙ CSS СТИЛЬ ---
 st.markdown("""
@@ -113,46 +112,19 @@ st.markdown("""
         font-weight: bold; font-size: 18px; border: 2px solid #1e7e34 !important;
     }
 
-    /* Шрифты для таблиц */
-    [data-testid="stDataEditor"] { font-size: 18px !important; font-weight: bold !important; }
+    [data-testid="stDataEditor"] { font-size: 16px !important; font-weight: bold !important; }
     th { font-size: 16px !important; text-align: right !important; }
-
-    .sidur-container { overflow-x: auto; border: 3px solid black; background-color: white; }
     </style>
 """, unsafe_allow_html=True)
 
 
 # --- 4. ФУНКЦИИ БЭКЕНДА (ОБЛАКО G-DRIVE) ---
-def migrate_old_logs():
-    if os.path.exists(OLD_LOG) and get_file_id(JOURNAL_DB) is None:
-        try:
-            old = pd.read_csv(OLD_LOG, encoding='utf-8-sig')
-            rows = []
-            for _, r in old.iterrows():
-                d = str(r.get('DateObj', ''))
-                h = str(r.get('Hour', str(r.get('שעה', ''))))
-                s = str(r.get('Shift', str(r.get('משמרת', ''))))
-                s_new = 'Morning' if 'בוקר' in s or '1' in s else 'Night'
-                u = str(r.get('Unit', str(r.get('יחידה / ציוד', ''))))
-                desc = str(r.get('Description', str(r.get('תיאור התקלה / עבודה', ''))))
-                if h or desc:
-                    rows.append({'Date': d, 'Unit': u, 'Shift': s_new, 'RowIdx': 0, 'Hour': h, 'Description': desc})
-            if rows:
-                df = pd.DataFrame(rows)
-                fh = io.BytesIO()
-                df.to_csv(fh, index=False, encoding='utf-8-sig')
-                fh.seek(0)
-                media = MediaIoBaseUpload(fh, mimetype='text/csv', resumable=True)
-                file_metadata = {'name': JOURNAL_DB, 'parents': [FOLDER_ID]}
-                drive_service.files().create(body=file_metadata, media_body=media).execute()
-        except: pass
-
 @st.cache_data(ttl=30)
 def get_schedule_file_drive(target_month):
     markers = MONTH_MARKERS.get(target_month, [])
     query = f"'{FOLDER_ID}' in parents and trashed = false"
     try:
-        results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+        results = drive_service.files().list(q=query, fields="files(id, name)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute()
         for f in results.get('files', []):
             name = f['name']
             if name.endswith(('.xlsx', '.xls', '.csv')):
@@ -231,39 +203,43 @@ def get_journal_slice(date_str, unit, shift):
         records.append({'Hour': '', 'Description': ''})
 
     out = pd.DataFrame(records[:6])
-    # Физически меняем местами: описание слева, часы справа (для отрисовки в UI)
+    # Жесткий порядок для Стримлита: Описание слева, Часы справа
     out = out[['Description', 'Hour']]
     out.columns = ['תיאור התקלה / עבודה', 'שעה']
     return out
 
 def save_all_journal_grids(date_str, dfs_list):
-    db = load_journal_db()
-    db = db[db['Date'] != date_str] 
+    try:
+        db = load_journal_db()
+        db = db[db['Date'] != date_str] 
 
-    rows = []
-    for unit, shift, df in dfs_list:
-        for idx, r in df.iterrows():
-            h = str(r['שעה']).strip()
-            d = str(r['תיאור התקלה / עבודה']).strip()
-            if h or d:
-                rows.append([date_str, unit, shift, idx, h, d])
+        rows = []
+        for unit, shift, df in dfs_list:
+            for idx, r in df.iterrows():
+                h = str(r['שעה']).strip()
+                d = str(r['תיאור התקלה / עבודה']).strip()
+                if h or d:
+                    rows.append([date_str, unit, shift, idx, h, d])
 
-    new_df = pd.DataFrame(rows, columns=['Date', 'Unit', 'Shift', 'RowIdx', 'Hour', 'Description'])
-    db = pd.concat([db, new_df])
-    
-    file_id = get_file_id(JOURNAL_DB)
-    fh = io.BytesIO()
-    db.to_csv(fh, index=False, encoding='utf-8-sig')
-    fh.seek(0)
-    media = MediaIoBaseUpload(fh, mimetype='text/csv', resumable=True)
-    
-    if file_id:
-        drive_service.files().update(fileId=file_id, media_body=media).execute()
-    else:
-        file_metadata = {'name': JOURNAL_DB, 'parents': [FOLDER_ID]}
-        drive_service.files().create(body=file_metadata, media_body=media).execute()
-    
-    st.cache_data.clear()
+        new_df = pd.DataFrame(rows, columns=['Date', 'Unit', 'Shift', 'RowIdx', 'Hour', 'Description'])
+        db = pd.concat([db, new_df])
+        
+        file_id = get_file_id(JOURNAL_DB)
+        fh = io.BytesIO()
+        db.to_csv(fh, index=False, encoding='utf-8-sig')
+        fh.seek(0)
+        media = MediaIoBaseUpload(fh, mimetype='text/csv', resumable=True)
+        
+        if file_id:
+            drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+        else:
+            file_metadata = {'name': JOURNAL_DB, 'parents': [FOLDER_ID]}
+            drive_service.files().create(body=file_metadata, media_body=media, supportsAllDrives=True).execute()
+        
+        st.cache_data.clear()
+        return True, "היומן נשמר בענן בהצלחה!"
+    except Exception as e:
+        return False, str(e)
 
 @st.cache_data(ttl=30)
 def load_jobs_db():
@@ -290,8 +266,12 @@ def draw_turbine_block(unit_name, section_num, date_str):
     df_m = get_journal_slice(date_str, unit_name, 'Morning')
     df_n = get_journal_slice(date_str, unit_name, 'Night')
     
+    # ПЕСОЧНЫЙ ЦВЕТ ДЛЯ ЖУРНАЛА
+    styled_m = df_m.style.map(lambda _: 'background-color: #fdf5e6; color: black;')
+    styled_n = df_n.style.map(lambda _: 'background-color: #fdf5e6; color: black;')
+    
     config = {
-        "שעה": st.column_config.TextColumn("שעה", width="small"),
+        "שעה": st.column_config.TextColumn("שעה", width=80),
         "תיאור התקלה / עבודה": st.column_config.TextColumn("תיאור התקלה / עבודה", width="large")
     }
 
@@ -303,7 +283,7 @@ def draw_turbine_block(unit_name, section_num, date_str):
             <div style="flex:1;"></div>
         </div>
         """, unsafe_allow_html=True)
-        ed_m = st.data_editor(df_m, key=f"m_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_config=config)
+        ed_m = st.data_editor(styled_m, key=f"m_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_config=config)
 
     with c_night:
         st.markdown(f"""
@@ -313,11 +293,11 @@ def draw_turbine_block(unit_name, section_num, date_str):
             <div style="flex:1;"></div>
         </div>
         """, unsafe_allow_html=True)
-        ed_n = st.data_editor(df_n, key=f"n_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_config=config)
+        ed_n = st.data_editor(styled_n, key=f"n_{section_num}_{date_str}", use_container_width=True, height=180, hide_index=True, column_config=config)
 
     return (unit_name, 'Morning', ed_m), (unit_name, 'Night', ed_n)
 
-# Раскраска Сидура
+# РАСКРАСКА СИДУРА
 def colorize_schedule(val):
     v = str(val).split('.')[0].strip()
     if v == '1': return 'background-color: #a9dfbf; color: black;'
@@ -325,8 +305,6 @@ def colorize_schedule(val):
     elif v in ['8', '9']: return 'background-color: #f9e79f; color: black;'
     elif v in ['ח', 'מ']: return 'background-color: #f5b7b1; color: black;'
     return 'color: black;'
-
-migrate_old_logs()
 
 # --- 5. ВКЛАДКИ ОКОН ---
 tab_log, tab_sch, tab_jobs = st.tabs(["דוח משמרת", "סידור", "עבודות היום"])
@@ -370,8 +348,9 @@ with tab_log:
     grids.extend(draw_turbine_block('טורבינה קיטורית', 3, date_str))
 
     if st.button("💾 שמור כל השינויים ביומן", type="primary", use_container_width=True):
-        save_all_journal_grids(date_str, grids)
-        st.success("היומן נשמר בענן בהצלחה!")
+        success, msg = save_all_journal_grids(date_str, grids)
+        if success: st.success(msg)
+        else: st.error(f"שגיאה (скинь скриншот): {msg}")
 
 # ==========================================
 # ОКНО 2: РАСПИСАНИЕ (СИДУР)
@@ -392,34 +371,37 @@ with tab_sch:
             cleaned_data = [[str(val).replace('.0', '') if val != "" else "" for val in row] for row in raw_matrix]
             
             df_clean = pd.DataFrame(cleaned_data)
-            # Жестко переводим названия колонок в текст, чтобы Стримлит не крашился
             df_clean.columns = df_clean.columns.astype(str)
             
-            # Физический разворот базы
+            # ФИЗИЧЕСКИЙ РАЗВОРОТ КОЛОНОК ДЛЯ ОТОБРАЖЕНИЯ (0 уходит вправо)
             rev_cols = list(df_clean.columns)[::-1]
             df_ui = df_clean[rev_cols]
             
-            try: styled_df = df_ui.style.map(colorize_schedule)
-            except AttributeError: styled_df = df_ui.style.applymap(colorize_schedule)
+            # Переименовываем правую колонку в "שם" чтобы было красиво
+            df_ui.rename(columns={'0': 'שם'}, inplace=True)
             
-            # Имя оператора теперь в колонке с названием "0" (так как мы перевернули и перевели в текст)
-            sch_config = {"0": st.column_config.TextColumn("שם", width="medium")}
+            styled_df = df_ui.style.map(colorize_schedule)
+            sch_config = {"שם": st.column_config.TextColumn("שם", width=100)}
 
             edited_schedule = st.data_editor(styled_df, use_container_width=True, height=600, hide_index=True, column_config=sch_config)
             
             if st.button("💾 שמור שינויים בענן (Google Drive)", type="primary", use_container_width=True):
-                # Возвращаем матрицу в исходный LTR вид перед сохранением в Excel
-                edited_schedule_save = edited_schedule[df_clean.columns]
-                
-                out_fh = io.BytesIO()
-                edited_schedule_save.to_excel(out_fh, index=False, header=False)
-                out_fh.seek(0)
-                media = MediaIoBaseUpload(out_fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
-                drive_service.files().update(fileId=active_sch_id, media_body=media).execute()
-                
-                st.cache_data.clear()
-                st.success("הסידור התעדכן ונשמר בענן בהצלחה!")
-                st.rerun()
+                try:
+                    df_save = edited_schedule.copy()
+                    df_save.rename(columns={'שם': '0'}, inplace=True)
+                    df_save = df_save[list(df_clean.columns)] # Возвращаем оригинальный порядок
+                    
+                    out_fh = io.BytesIO()
+                    df_save.to_excel(out_fh, index=False, header=False)
+                    out_fh.seek(0)
+                    media = MediaIoBaseUpload(out_fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
+                    drive_service.files().update(fileId=active_sch_id, media_body=media, supportsAllDrives=True).execute()
+                    
+                    st.cache_data.clear()
+                    st.success("הסידור התעדכן ונשמר בענן בהצלחה!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"שגיאה בשמירת סידור: {e}")
                 
         except Exception as e:
             st.error(f"שגיאה קריאת קובץ: {e}")
@@ -434,36 +416,42 @@ with tab_jobs:
     
     df_jobs = load_jobs_db()
     
-    # Физический разворот
+    # ФИЗИЧЕСКИЙ РАЗВОРОТ: "מספר" СТАНОВИТСЯ СПРАВА
     df_ui_jobs = df_jobs[["משימות ופעולות לביצוע", "מספר"]]
     
+    # ФОН ДЛЯ РАБОТ
+    styled_jobs = df_ui_jobs.style.map(lambda _: 'background-color: #ebf5fb; color: black;')
+    
     config_jobs = {
-        "מספר": st.column_config.TextColumn("מספר", width="small"),
+        "מספר": st.column_config.TextColumn("מספר", width=80),
         "משימות ופעולות לביצוע": st.column_config.TextColumn("משימות ופעולות לביצוע", width="large")
     }
     
-    edited_df = st.data_editor(df_ui_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True, column_config=config_jobs)
+    edited_df = st.data_editor(styled_jobs, num_rows="dynamic", use_container_width=True, height=520, hide_index=True, column_config=config_jobs)
     
     col_save, col_send, col_addr = st.columns([2, 2, 6])
     
     with col_save:
         if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True):
-            # Возвращаем колонки на место перед сохранением
-            df_save_jobs = edited_df[["מספר", "משימות ופעולות לביצוע"]]
-            
-            file_id = get_file_id(JOBS_FILE)
-            fh = io.BytesIO()
-            df_save_jobs.to_excel(fh, index=False)
-            fh.seek(0)
-            media = MediaIoBaseUpload(fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
-            if file_id:
-                drive_service.files().update(fileId=file_id, media_body=media).execute()
-            else:
-                file_metadata = {'name': JOBS_FILE, 'parents': [FOLDER_ID]}
-                drive_service.files().create(body=file_metadata, media_body=media).execute()
-            
-            st.cache_data.clear()
-            st.success("נשמר בהצלחה ב-Google Drive!")
+            try:
+                # ВОЗВРАТ КОЛОНОК НА МЕСТО ПЕРЕД СОХРАНЕНИЕМ
+                df_save_jobs = edited_df[["מספר", "משימות ופעולות לביצוע"]]
+                
+                file_id = get_file_id(JOBS_FILE)
+                fh = io.BytesIO()
+                df_save_jobs.to_excel(fh, index=False)
+                fh.seek(0)
+                media = MediaIoBaseUpload(fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resumable=True)
+                if file_id:
+                    drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+                else:
+                    file_metadata = {'name': JOBS_FILE, 'parents': [FOLDER_ID]}
+                    drive_service.files().create(body=file_metadata, media_body=media, supportsAllDrives=True).execute()
+                
+                st.cache_data.clear()
+                st.success("נשמר בהצלחה ב-Google Drive!")
+            except Exception as e:
+                st.error(f"שגיאה בשמירת עבודות (скинь скриншот): {e}")
             
     with col_send:
         btn_send = st.button("✉️ שלח למייל", use_container_width=True)
