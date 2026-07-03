@@ -53,29 +53,26 @@ def get_file_id(filename):
     return items[0]['id'] if items else None
 
 # --- SMTP EMAIL ENGINE ---
-def send_jobs_email(to_email, data_list, date_str):
+def send_email_core(to_email, subject, html_body, attachment_df=None, attachment_name=""):
     from_email = "mashav.journal@gmail.com"
     password = st.secrets.get("EMAIL_PASS", "").replace(" ", "")
     if not password:
-        return False, "Пароль приложений (EMAIL_PASS) не найден ב-Secrets!"
+        return False, "Пароль приложений לא נמצא ב-Secrets!"
     
     msg = MIMEMultipart()
     msg['From'] = from_email
     msg['To'] = to_email
-    msg['Subject'] = Header(f"עבודות מתוכננות להיום - {date_str}", 'utf-8')
-    
-    df_mail = pd.DataFrame(data_list)
-    html_table = df_mail.to_html(index=False, justify='right')
-    html_body = f"""
-    <html dir="rtl">
-    <body style="font-family: Arial, sans-serif; text-align: right; direction: rtl;">
-        <h2>עבודות מתוכננות להיום ({date_str})</h2>
-        {html_table}
-    </body>
-    </html>
-    """
+    msg['Subject'] = Header(subject, 'utf-8')
     msg.attach(MIMEText(html_body, 'html', 'utf-8'))
     
+    if attachment_df is not None:
+        excel_buffer = io.BytesIO()
+        attachment_df.to_excel(excel_buffer, index=False)
+        excel_buffer.seek(0)
+        part = MIMEApplication(excel_buffer.read(), Name=attachment_name)
+        part['Content-Disposition'] = f'attachment; filename="{attachment_name}"'
+        msg.attach(part)
+        
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.ehlo()
@@ -84,11 +81,38 @@ def send_jobs_email(to_email, data_list, date_str):
         server.login(from_email, password)
         server.send_message(msg)
         server.quit()
-        return True, "הודעה נשלחה בהצלחה למייל!"
+        return True, "נשלח בהצלחה למייל!"
     except Exception as e:
         return False, f"שגיאה בשרת הדואר: {str(e)}"
 
-# --- 3. CSS (ОПТИМИЗИРОВАННЫЙ ПОД ЗАГОЛОВКИ) ---
+def send_jobs_email(to_email, data_list, date_str):
+    df_mail = pd.DataFrame(data_list)
+    html_table = df_mail.to_html(index=False, justify='right')
+    html_body = f"""<html dir="rtl"><body style="font-family: Arial; text-align: right; direction: rtl;">
+        <h2>עבודות מתוכננות להיום ({date_str})</h2>{html_table}</body></html>"""
+    return send_email_core(to_email, f"עבודות מתוכננות להיום - {date_str}", html_body, df_mail, f"Jobs_{date_str}.xlsx")
+
+def send_journal_email_func(to_email, data_list, date_str):
+    if not data_list:
+        html_table = "<p>אין רישומים ביומן ליום זה.</p>"
+        df_mail = None
+    else:
+        df_mail = pd.DataFrame(data_list)
+        html_table = df_mail.to_html(index=False, justify='right')
+        
+    html_body = f"""<html dir="rtl"><body style="font-family: Arial; text-align: right; direction: rtl;">
+        <h2>דוח משמרת מרוכז ({date_str})</h2>{html_table}</body></html>"""
+    return send_email_core(to_email, f"דוח משמרת - {date_str}", html_body, df_mail, f"Journal_{date_str}.xlsx" if df_mail is not None else "")
+
+def send_warehouse_email(to_email, unit, shift, hour, desc, date_str):
+    html_body = f"""<html dir="rtl"><body style="font-family: Arial; text-align: right; direction: rtl;">
+        <h2>הזמנה/דיווח למחסן</h2>
+        <p><b>תאריך:</b> {date_str}</p><p><b>יחידה:</b> {unit}</p>
+        <p><b>משמרת:</b> {shift}</p><p><b>שעה:</b> {hour}</p>
+        <p><b>תיאור:</b> {desc}</p></body></html>"""
+    return send_email_core(to_email, f"הודעה למחסן - {unit} - {date_str}", html_body)
+
+# --- 3. ТОТАЛЬНОЕ УНИЧТОЖЕНИЕ ПУСТЫХ ПРОСТРАНСТВ (CSS) ---
 st.markdown("""
     <style>
     .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
@@ -119,20 +143,26 @@ st.markdown("""
         padding-right: 8px !important;
     }
 
-    /* ИСПРАВЛЕННЫЕ ЗАГОЛОВКИ (БЕЗ ПАРАГРАФОВ) */
-    .header-box {
-        background-color: #d35400; /* Orange default */
-        color: white !important;
+    .header-orange, .header-blue {
         text-align: center !important;
         font-weight: bold !important;
         font-size: 16px !important;
-        min-height: 50px !important;
-        padding-top: 10px !important;
+        color: white !important;
+        height: 40px !important;
+        line-height: 40px !important; 
         border: 1px solid #7f8c8d !important;
+        border-bottom: none !important;
         margin-bottom: -1px !important;
-        overflow: visible !important;
+        display: block !important;
     }
+    .header-orange { background-color: #d35400 !important; }
     .header-blue { background-color: #2980b9 !important; }
+    
+    .header-orange p, .header-blue p {
+        margin: 0px !important;
+        padding: 0px !important;
+        line-height: 40px !important;
+    }
 
     .num-box {
         background-color: #2c3e50 !important;
@@ -143,9 +173,18 @@ st.markdown("""
         height: 38px !important;
         line-height: 38px !important;
         border: 1px solid #7f8c8d !important;
+        margin: 0px !important;
         margin-top: -1px !important;
+        display: block !important;
+    }
+    .num-box p {
+        margin: 0px !important;
+        padding: 0px !important;
+        line-height: 38px !important;
     }
     
+    div[data-testid="stButton"] button { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+
     .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
     .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
@@ -300,10 +339,20 @@ with tab_log:
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_morn:
-            # Используем div вместо markdown с <p>, чтобы избежать вложений
-            st.markdown(f'<div class="header-box header-orange">{u_num}. {u_name} - משמרת בוקר</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                col_d, col_h = st.columns([12, 3])
+                # Добавлена кнопка @ справа (index 2 в LTR -> визуально справа)
+                col_d, col_h, col_b = st.columns([11.5, 2.5, 1])
+                with col_b:
+                    if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="primary"):
+                        h_val_cur = st.session_state.get(f"h_m_{u_num}_{idx}_{date_str}", "")
+                        d_val_cur = st.session_state.get(f"d_m_{u_num}_{idx}_{date_str}", "")
+                        if h_val_cur.strip() or d_val_cur.strip():
+                            success, msg = send_warehouse_email("wider71@gmail.com", u_name, "בוקר", h_val_cur, d_val_cur, date_str)
+                            if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
+                            else: st.toast(f"שגיאה: {msg}", icon="❌")
+                        else:
+                            st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
                 with col_h:
                     h_val = st.text_input(f"שעה {idx}", value=m_data[idx].get('Hour',''), key=f"h_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with col_d:
@@ -311,9 +360,19 @@ with tab_log:
                 saved_inputs[(u_name, 'Morning', idx)] = (h_val, d_val)
                 
         with c_night:
-            st.markdown(f'<div class="header-box header-blue">{u_num}. {u_name} - משמרת לילה</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                col_d, col_h = st.columns([12, 3])
+                col_d, col_h, col_b = st.columns([11.5, 2.5, 1])
+                with col_b:
+                    if st.button("@", key=f"btn_wh_n_{u_num}_{idx}_{date_str}", type="primary"):
+                        h_val_cur = st.session_state.get(f"h_n_{u_num}_{idx}_{date_str}", "")
+                        d_val_cur = st.session_state.get(f"d_n_{u_num}_{idx}_{date_str}", "")
+                        if h_val_cur.strip() or d_val_cur.strip():
+                            success, msg = send_warehouse_email("wider71@gmail.com", u_name, "לילה", h_val_cur, d_val_cur, date_str)
+                            if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
+                            else: st.toast(f"שגיאה: {msg}", icon="❌")
+                        else:
+                            st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
                 with col_h:
                     h_val = st.text_input(f"שעה n{idx}", value=n_data[idx].get('Hour',''), key=f"h_n_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with col_d:
@@ -321,27 +380,48 @@ with tab_log:
                 saved_inputs[(u_name, 'Night', idx)] = (h_val, d_val)
 
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
-    if st.button("💾 שמור כל השינויים ביומן", type="primary", use_container_width=True):
-        db = load_journal_db()
-        db = db[db['Date'] != date_str]
-        new_rows = []
-        for (u_name, shift, idx), (h, d) in saved_inputs.items():
-            if h.strip() or d.strip():
-                new_rows.append([date_str, u_name, shift, idx, h.strip(), d.strip()])
-        if new_rows:
-            new_df = pd.DataFrame(new_rows, columns=['Date', 'Unit', 'Shift', 'RowIdx', 'Hour', 'Description'])
-            db = pd.concat([db, new_df])
+    
+    # НОВЫЙ НИЖНИЙ БАР ДЛЯ ЖУРНАЛА (СОХРАНЕНИЕ + ОТПРАВКА НА ПОЧТУ)
+    col_save, s1, col_send, s2, col_addr = st.columns([3, 0.5, 3, 0.5, 5])
+    with col_save:
+        if st.button("💾 שמור כל השינויים ביומן", type="primary", use_container_width=True):
+            db = load_journal_db()
+            db = db[db['Date'] != date_str]
+            new_rows = []
+            for (u_name, shift, idx), (h, d) in saved_inputs.items():
+                if h.strip() or d.strip():
+                    new_rows.append([date_str, u_name, shift, idx, h.strip(), d.strip()])
+            if new_rows:
+                new_df = pd.DataFrame(new_rows, columns=['Date', 'Unit', 'Shift', 'RowIdx', 'Hour', 'Description'])
+                db = pd.concat([db, new_df])
+            
+            fh = io.BytesIO(); db.to_csv(fh, index=False, encoding='utf-8-sig'); fh.seek(0)
+            media = MediaIoBaseUpload(fh, mimetype='text/csv', resumable=True)
+            file_id = get_file_id(JOURNAL_DB)
+            if file_id: 
+                drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+                st.cache_data.clear()
+                st.success("היומן נשמר בענן בהצלחה!")
+                st.rerun()
+            else: 
+                st.error("שגיאה 403: קובץ journal_db.csv לא נמצא. נא ליצור קובץ טקסט ריק בשם journal_db.csv ולהעלות אותו לתיקייה בגוגל דרייב.")
+                
+    with col_send:
+        btn_send_log = st.button("✉️ שלח יומן למייל", use_container_width=True)
         
-        fh = io.BytesIO(); db.to_csv(fh, index=False, encoding='utf-8-sig'); fh.seek(0)
-        media = MediaIoBaseUpload(fh, mimetype='text/csv', resumable=True)
-        file_id = get_file_id(JOURNAL_DB)
-        if file_id: 
-            drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
-            st.cache_data.clear()
-            st.success("היומן נשמר בענן בהצלחה!")
-            st.rerun()
-        else: 
-            st.error("שגיאה 403: קובץ journal_db.csv לא נמצא. נא ליצור קובץ טקסט ריק בשם journal_db.csv ולהעלות אותו לתיקייה בגוגל דרייב.")
+    with col_addr:
+        target_log_email = st.selectbox("לשלוח יומן ל:", ["wider71@gmail.com"], key="log_email", label_visibility="collapsed")
+        
+    if btn_send_log:
+        with st.spinner("מכין ושולח דוח..."):
+            journal_rows_for_email = []
+            for (u_name, shift, idx), (h, d) in saved_inputs.items():
+                if h.strip() or d.strip():
+                    s_name = "בוקר" if shift == "Morning" else "לילה"
+                    journal_rows_for_email.append({"יחידה": u_name, "משמרת": s_name, "שעה": h.strip(), "תיאור": d.strip()})
+            success, msg = send_journal_email_func(target_log_email, journal_rows_for_email, date_str)
+            if success: st.success(msg)
+            else: st.error(msg)
 
 
 # ==========================================
@@ -384,17 +464,17 @@ with tab_jobs:
     for i in range(15):
         col_num, col_task = st.columns([1, 14])
         with col_num:
-            st.markdown(f'<div class="num-box">{i+1}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="num-box"><p>{i+1}</p></div>', unsafe_allow_html=True)
         with col_task:
             t_val = st.text_input(f"משימה {i+1}", value=loaded_jobs[i], key=f"job_input_{i}_{date_str}", label_visibility="collapsed")
         saved_jobs_inputs.append({"מספר": str(i+1), "משימות ופעולות לביצוע": t_val})
         
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
-    col_save, s1, col_send, s2, col_addr = st.columns([3, 0.5, 3, 0.5, 6])
+    col_save, s1, col_send, s2, col_addr = st.columns([3, 0.5, 3, 0.5, 5])
     
     with col_save:
-        if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True):
+        if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True, key="save_jobs_btn"):
             try:
                 file_id = get_file_id(JOBS_FILE)
                 if file_id:
@@ -436,10 +516,10 @@ with tab_jobs:
                 st.error(f"שגיאה בשמירה: {e}")
             
     with col_send:
-        btn_send = st.button("✉️ שלח למייל", use_container_width=True)
+        btn_send = st.button("✉️ שלח למייל", use_container_width=True, key="send_jobs_btn")
         
     with col_addr:
-        target_email = st.selectbox("לשלוח עבודות ל:", ["wider71@gmail.com"], label_visibility="collapsed")
+        target_email = st.selectbox("לשלוח עבודות ל:", ["wider71@gmail.com"], key="jobs_email_target", label_visibility="collapsed")
         
     if btn_send:
         with st.spinner("שולח..."):
