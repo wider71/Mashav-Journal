@@ -106,7 +106,7 @@ def send_journal_email_func(to_email, data_list, date_str):
 
 def send_warehouse_email(to_email, unit, shift, hour, desc, date_str):
     html_body = f"""<html dir="rtl"><body style="font-family: Arial; text-align: right; direction: rtl;">
-        <h2>הזמנה/דיווח למחסן</h2>
+        <h2>הזמנה / דיווח למחסן</h2>
         <p><b>תאריך:</b> {date_str}</p><p><b>יחידה:</b> {unit}</p>
         <p><b>משמרת:</b> {shift}</p><p><b>שעה:</b> {hour}</p>
         <p><b>תיאור:</b> {desc}</p></body></html>"""
@@ -120,29 +120,36 @@ st.markdown("""
     * { direction: rtl !important; text-align: right !important; }
     
     div[data-testid="stVerticalBlock"] { gap: 0rem !important; }
-    div[data-testid="stHorizontalBlock"] { gap: 0rem !important; align-items: stretch !important; }
+    div[data-testid="stHorizontalBlock"] { gap: 0rem !important; align-items: stretch !important; margin-bottom: 0px !important; }
+    div[data-testid="column"] { padding: 0px !important; } /* Схлопываем зазоры между колонками */
     
     div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
+    /* СТИЛЬ ДЛЯ ТЕКСТОВЫХ ПОЛЕЙ */
     div[data-testid="stTextInput"] div[data-baseweb="input"] {
         border-radius: 0px !important; 
         min-height: 38px !important;
         height: 38px !important;
-        background-color: #eaf0dc !important; 
-        border: 1px solid #7f8c8d !important;
+        background-color: transparent !important; 
+        border: none !important;
         margin-top: -1px !important; 
     }
     
     div[data-testid="stTextInput"] input {
+        background-color: #eaf0dc !important; 
         direction: rtl !important;
         text-align: right !important;
         font-size: 16px !important;
         font-weight: bold !important;
         color: #000000 !important;
         padding-right: 8px !important;
+        border-radius: 0px !important;
+        border: 1px solid #7f8c8d !important;
+        height: 38px !important;
     }
 
+    /* ИДЕАЛЬНО ОТЦЕНТРОВАННЫЕ ЗАГОЛОВКИ */
     .header-orange, .header-blue {
         text-align: center !important;
         font-weight: bold !important;
@@ -158,12 +165,9 @@ st.markdown("""
     .header-orange { background-color: #d35400 !important; }
     .header-blue { background-color: #2980b9 !important; }
     
-    .header-orange p, .header-blue p {
-        margin: 0px !important;
-        padding: 0px !important;
-        line-height: 40px !important;
-    }
+    .header-orange p, .header-blue p { margin: 0px !important; padding: 0px !important; line-height: 40px !important; }
 
+    /* НОМЕРА В עבודות */
     .num-box {
         background-color: #2c3e50 !important;
         color: white !important;
@@ -177,18 +181,39 @@ st.markdown("""
         margin-top: -1px !important;
         display: block !important;
     }
-    .num-box p {
+    .num-box p { margin: 0px !important; padding: 0px !important; line-height: 38px !important; }
+    
+    /* КНОПКА @ - ЖЕСТКАЯ ФИКСАЦИЯ В СЕТКЕ */
+    div.row-widget.stButton { margin: 0px !important; padding: 0px !important; }
+    button[kind="secondary"] {
+        height: 38px !important;
+        min-height: 38px !important;
+        width: 100% !important;
         margin: 0px !important;
         padding: 0px !important;
-        line-height: 38px !important;
+        border-radius: 0px !important;
+        border: 1px solid #7f8c8d !important;
+        background-color: #27ae60 !important;
+        color: white !important;
+        font-weight: bold !important;
+        font-size: 16px !important;
+        margin-top: -1px !important; 
     }
-    
-    div[data-testid="stButton"] button { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
 
     .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
     .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
-    .stButton button[kind="primary"] { background-color: #28a745 !important; color: white !important; font-weight: bold; font-size: 18px; border: 2px solid #1e7e34 !important; }
+    
+    /* КНОПКИ СОХРАНЕНИЯ */
+    .stButton button[kind="primary"] { 
+        background-color: #28a745 !important; 
+        color: white !important; 
+        font-weight: bold; 
+        font-size: 18px; 
+        border: 2px solid #1e7e34 !important; 
+        height: 40px !important;
+        margin: 0px !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -332,8 +357,8 @@ with tab_log:
     saved_inputs = {}
     
     for u_name, u_num in units:
-        st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
-        c_morn, c_space, c_night = st.columns([10, 0.5, 10])
+        st.markdown(f'<div style="height:15px;"></div>', unsafe_allow_html=True)
+        c_morn, c_space, c_night = st.columns([10, 0.2, 10])
         
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
@@ -341,10 +366,10 @@ with tab_log:
         with c_morn:
             st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                # Добавлена кнопка @ справа (index 2 в LTR -> визуально справа)
-                col_d, col_h, col_b = st.columns([11.5, 2.5, 1])
+                # Кнопка @ теперь справа (индекс 0 в RTL)
+                col_b, col_d, col_h = st.columns([1, 11.5, 2.5])
                 with col_b:
-                    if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="primary"):
+                    if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="secondary"):
                         h_val_cur = st.session_state.get(f"h_m_{u_num}_{idx}_{date_str}", "")
                         d_val_cur = st.session_state.get(f"d_m_{u_num}_{idx}_{date_str}", "")
                         if h_val_cur.strip() or d_val_cur.strip():
@@ -353,18 +378,18 @@ with tab_log:
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
-                with col_h:
-                    h_val = st.text_input(f"שעה {idx}", value=m_data[idx].get('Hour',''), key=f"h_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with col_d:
                     d_val = st.text_input(f"תיאור {idx}", value=m_data[idx].get('Description',''), key=f"d_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with col_h:
+                    h_val = st.text_input(f"שעה {idx}", value=m_data[idx].get('Hour',''), key=f"h_m_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 saved_inputs[(u_name, 'Morning', idx)] = (h_val, d_val)
                 
         with c_night:
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                col_d, col_h, col_b = st.columns([11.5, 2.5, 1])
+                col_b, col_d, col_h = st.columns([1, 11.5, 2.5])
                 with col_b:
-                    if st.button("@", key=f"btn_wh_n_{u_num}_{idx}_{date_str}", type="primary"):
+                    if st.button("@", key=f"btn_wh_n_{u_num}_{idx}_{date_str}", type="secondary"):
                         h_val_cur = st.session_state.get(f"h_n_{u_num}_{idx}_{date_str}", "")
                         d_val_cur = st.session_state.get(f"d_n_{u_num}_{idx}_{date_str}", "")
                         if h_val_cur.strip() or d_val_cur.strip():
@@ -373,18 +398,18 @@ with tab_log:
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
-                with col_h:
-                    h_val = st.text_input(f"שעה n{idx}", value=n_data[idx].get('Hour',''), key=f"h_n_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with col_d:
                     d_val = st.text_input(f"תיאור n{idx}", value=n_data[idx].get('Description',''), key=f"d_n_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with col_h:
+                    h_val = st.text_input(f"שעה n{idx}", value=n_data[idx].get('Hour',''), key=f"h_n_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 saved_inputs[(u_name, 'Night', idx)] = (h_val, d_val)
 
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
-    # НОВЫЙ НИЖНИЙ БАР ДЛЯ ЖУРНАЛА (СОХРАНЕНИЕ + ОТПРАВКА НА ПОЧТУ)
-    col_save, s1, col_send, s2, col_addr = st.columns([3, 0.5, 3, 0.5, 5])
+    # НИЖНИЙ БАР ЖУРНАЛА (Компактный размер + отступ)
+    col_save, col_send, col_addr, _ = st.columns([2, 2, 3, 5])
     with col_save:
-        if st.button("💾 שמור כל השינויים ביומן", type="primary", use_container_width=True):
+        if st.button("💾 שמור יומן", type="primary", use_container_width=True):
             db = load_journal_db()
             db = db[db['Date'] != date_str]
             new_rows = []
@@ -404,10 +429,10 @@ with tab_log:
                 st.success("היומן נשמר בענן בהצלחה!")
                 st.rerun()
             else: 
-                st.error("שגיאה 403: קובץ journal_db.csv לא נמצא. נא ליצור קובץ טקסט ריק בשם journal_db.csv ולהעלות אותו לתיקייה בגוגל דרייב.")
+                st.error("שגיאה 403: קובץ journal_db.csv לא נמצא.")
                 
     with col_send:
-        btn_send_log = st.button("✉️ שלח יומן למייל", use_container_width=True)
+        btn_send_log = st.button("✉️ שלח יומן", type="primary", use_container_width=True)
         
     with col_addr:
         target_log_email = st.selectbox("לשלוח יומן ל:", ["wider71@gmail.com"], key="log_email", label_visibility="collapsed")
@@ -471,10 +496,11 @@ with tab_jobs:
         
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
-    col_save, s1, col_send, s2, col_addr = st.columns([3, 0.5, 3, 0.5, 5])
+    # НИЖНИЙ БАР РАБОТ (Компактный)
+    col_save_j, col_send_j, col_addr_j, _ = st.columns([2, 2, 3, 5])
     
-    with col_save:
-        if st.button("💾 שמור עבודות (בענן)", type="primary", use_container_width=True, key="save_jobs_btn"):
+    with col_save_j:
+        if st.button("💾 שמור עבודות", type="primary", use_container_width=True, key="save_jobs_btn"):
             try:
                 file_id = get_file_id(JOBS_FILE)
                 if file_id:
@@ -511,18 +537,18 @@ with tab_jobs:
                     st.success("העבודות נשמרו בהצלחה!")
                     st.rerun()
                 else: 
-                    st.error("שגיאה 403: קובץ jobs_internal.xlsx לא נמצא. נא ליצור קובץ אקסל ריק בשם jobs_internal.xlsx ולהעלות אותו לתיקייה בגוגל דרייב.")
+                    st.error("שגיאה 403: קובץ jobs_internal.xlsx לא נמצא.")
             except Exception as e:
                 st.error(f"שגיאה בשמירה: {e}")
             
-    with col_send:
-        btn_send = st.button("✉️ שלח למייל", use_container_width=True, key="send_jobs_btn")
+    with col_send_j:
+        btn_send_j = st.button("✉️ שלח עבודות", type="primary", use_container_width=True, key="send_jobs_btn")
         
-    with col_addr:
-        target_email = st.selectbox("לשלוח עבודות ל:", ["wider71@gmail.com"], key="jobs_email_target", label_visibility="collapsed")
+    with col_addr_j:
+        target_email_j = st.selectbox("לשלוח עבודות ל:", ["wider71@gmail.com"], key="jobs_email_target", label_visibility="collapsed")
         
-    if btn_send:
+    if btn_send_j:
         with st.spinner("שולח..."):
-            success, msg = send_jobs_email(target_email, saved_jobs_inputs, date_str)
+            success, msg = send_jobs_email(target_email_j, saved_jobs_inputs, date_str)
             if success: st.success(msg)
             else: st.error(msg)
