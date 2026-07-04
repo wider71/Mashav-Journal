@@ -119,7 +119,6 @@ st.markdown("""
     .stApp { background-color: #9ba4b5; }
     * { direction: rtl !important; text-align: right !important; }
     
-    /* УБИВАЕМ ВСЕ ЗАЗОРЫ МЕЖДУ ЯЧЕЙКАМИ И СТРОКАМИ */
     div[data-testid="stVerticalBlock"] { gap: 0px !important; }
     div[data-testid="stHorizontalBlock"] { gap: 0px !important; align-items: stretch !important; margin-bottom: 0px !important; }
     div[data-testid="column"] { padding: 0px !important; } 
@@ -127,7 +126,6 @@ st.markdown("""
     div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
-    /* СТИЛЬ ДЛЯ ТЕКСТОВЫХ ПОЛЕЙ (ИДЕАЛЬНЫЙ ПРЯМОУГОЛЬНИК 40px) */
     div[data-testid="stTextInput"] div[data-baseweb="input"] {
         border-radius: 0px !important; 
         height: 40px !important;
@@ -154,7 +152,6 @@ st.markdown("""
         margin-right: -1px !important; 
     }
 
-    /* ИДЕАЛЬНО ОТЦЕНТРОВАННЫЕ ЗАГОЛОВКИ ТУРБИН (РАСПОРКА ИЗНУТРИ) */
     .header-orange, .header-blue {
         text-align: center !important;
         font-weight: bold !important;
@@ -175,7 +172,6 @@ st.markdown("""
         line-height: normal !important; 
     }
 
-    /* НОМЕРА В עבודות */
     .num-box {
         background-color: #2c3e50 !important;
         color: white !important;
@@ -192,7 +188,6 @@ st.markdown("""
     }
     .num-box p { margin: 0px !important; padding: 0px !important; }
     
-    /* КНОПКА @ - ИДЕАЛЬНО ВШИТА В СЕТКУ */
     div.row-widget.stButton { margin: 0px !important; padding: 0px !important; }
     button[kind="secondary"] {
         height: 40px !important;
@@ -213,7 +208,6 @@ st.markdown("""
         z-index: 10;
     }
 
-    /* ДИЗАЙН ОСНОВНЫХ КНОПОК */
     .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
     .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
@@ -227,7 +221,6 @@ st.markdown("""
         margin: 0px !important;
     }
     
-    /* Скрываем лишние границы у таблицы Pandas */
     [data-testid="stDataFrame"] { border: none !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -330,14 +323,23 @@ def generate_safe_styles(df, target_col):
         for idx in df.index:
             val = str(df.at[idx, col]).split('.')[0].strip()
             css = ''
-            if val == '1': css += 'background-color: #a9dfbf; color: black; font-weight: bold; font-size: 16px;'
-            elif val == '2': css += 'background-color: #abb2b9; color: black; font-weight: bold; font-size: 16px;'
-            elif val in ['8', '9']: css += 'background-color: #f9e79f; color: black; font-size: 16px;'
-            elif val in ['ח', 'מ']: css += 'background-color: #f5b7b1; color: black; font-weight: bold; font-size: 16px;'
-            else: css += 'color: black; font-size: 16px;'
             
-            if str(col) == target_col:
-                css += ' border: 3px solid #2ecc71;'
+            # Обновленные цвета и увеличенный шрифт (18px)
+            if val == '1': 
+                css += 'background-color: #a9dfbf; color: black; font-weight: bold; font-size: 18px;'
+            elif val == '2': 
+                # Светло-синеголубой фон вместо серого
+                css += 'background-color: #85c1e9; color: black; font-weight: bold; font-size: 18px;'
+            elif val in ['8', '9']: 
+                css += 'background-color: #f9e79f; color: black; font-size: 18px;'
+            elif val in ['ח', 'מ']: 
+                css += 'background-color: #f5b7b1; color: black; font-weight: bold; font-size: 18px;'
+            else: 
+                css += 'color: black; font-size: 16px;'
+            
+            # Зеленая рамка
+            if str(col) == str(target_col):
+                css += ' border: 3px solid #2ecc71 !important;'
                 
             styles.at[idx, col] = css
     return styles
@@ -385,7 +387,7 @@ with tab_log:
     for u_name, u_num in units:
         st.markdown(f'<div style="height:15px;"></div>', unsafe_allow_html=True)
         
-        # RTL: [0] = Утро (Фактически отобразится Справа), [2] = Ночь (Отобразится Слева)
+        # ОСНОВНЫЕ СТОЛБЦЫ ИЗ ВЕРСИИ 3.7
         c_morn, c_space, c_night = st.columns([10, 0.5, 10])
         
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
@@ -395,7 +397,7 @@ with tab_log:
             # ПРАВАЯ СТОРОНА: ОРАНЖЕВАЯ (УТРО)
             st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                # RTL внутри: [0]=Описание (Справа), [1]=Время (Центр), [2]=Кнопка @ (Слева)
+                # ВНУТРИ СТРОКИ: [0]=Описание (Справа), [1]=Время (Центр), [2]=Кнопка @ (Слева)
                 c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
                 with c_d:
                     d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
@@ -412,12 +414,12 @@ with tab_log:
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
                 saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
-
+                
         with c_night:
             # ЛЕВАЯ СТОРОНА: СИНЯЯ (НОЧЬ)
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                # RTL внутри: [0]=Описание (Справа), [1]=Время (Центр), [2]=Кнопка @ (Слева)
+                # ВНУТРИ СТРОКИ: [0]=Описание (Справа), [1]=Время (Центр), [2]=Кнопка @ (Слева)
                 c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
                 with c_d:
                     d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
@@ -501,9 +503,19 @@ with tab_sch:
             df_ui = df_clean[rev_cols]
             df_ui.rename(columns={'0': 'שם'}, inplace=True)
             
-            # БЕЗОПАСНАЯ ГЕНЕРАЦИЯ ЗЕЛЕНОЙ РАМКИ
+            # Точный поиск колонки дня для зеленой рамки
             target_day_str = str(st.session_state.log_date.day)
-            styled_df = df_ui.style.apply(lambda df: generate_safe_styles(df, target_day_str), axis=None)
+            target_col_name = None
+            for idx, row in df_ui.iterrows():
+                row_vals = [str(x).split('.')[0].strip() for x in row]
+                if '1' in row_vals and '15' in row_vals:
+                    for col in df_ui.columns:
+                        if str(df_ui.at[idx, col]).split('.')[0].strip() == target_day_str:
+                            target_col_name = str(col)
+                    break
+            
+            # БЕЗОПАСНАЯ ГЕНЕРАЦИЯ СТИЛЕЙ С РАМКОЙ
+            styled_df = df_ui.style.apply(lambda df: generate_safe_styles(df, target_col_name), axis=None)
             styled_df = styled_df.set_properties(**{'text-align': 'center', 'font-weight': 'bold'})
             
             st.dataframe(styled_df, use_container_width=True, height=550)
