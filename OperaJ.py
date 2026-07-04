@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 import pandas as pd
 from datetime import datetime, timedelta
 import os
@@ -376,7 +376,13 @@ with tab_log:
     with col_logo:
         if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=120)
     with col_title:
-        st.markdown(f"<h4 style='color: {t['title']}; margin-top:2px; font-weight:bold; font-size:20px;'>דוח משמרת תחנת כוח משאב</h4>", unsafe_allow_html=True)
+        # ДОБАВЛЕН ИДЕНТИФИКАТОР OPERAJ 5.2 СТРОГО ПО ЦЕНТРУ ТЕКСТОВОГО БЛОКА
+        st.markdown(f"""
+            <div style='text-align: center;'>
+                <h4 style='color: {t['title']}; margin: 0; font-weight:bold; font-size:20px;'>דוח משמרת תחנת כוח משאב</h4>
+                <div style='color: {t['text']}; font-size: 13px; font-family: monospace; margin-top: 5px; opacity: 0.7;'>OperaJ 5.2</div>
+            </div>
+        """, unsafe_allow_html=True)
     with col_cal_r:
         if st.button("▶ יום הבא", type="primary", use_container_width=True): st.session_state.log_date += timedelta(days=1); st.rerun()
     with col_cal_m:
@@ -595,7 +601,7 @@ with tab_jobs:
                     st.success("העבודות נשמרו בהצלחה!")
                     st.rerun()
                 else: 
-                    st.error("שגיאה 403: קובץ jobs_internal.xlsx לא נמצא.")
+                    st.error("שגיאה 403: קобц jobs_internal.xlsx לא נמצא.")
             except Exception as e:
                 st.error(f"שגיאה בשמירה: {e}")
             
@@ -625,7 +631,6 @@ with tab_settings:
         theme_keys = list(THEMES.keys())
         selected_theme = st.selectbox("Theme", theme_keys, index=theme_keys.index(st.session_state.ui_theme), label_visibility="collapsed")
         
-        # Мгновенная смена темы
         if selected_theme != st.session_state.ui_theme:
             st.session_state.ui_theme = selected_theme
             st.rerun()
@@ -665,3 +670,10 @@ with tab_settings:
                     st.error("Файл mashav_settings.json не найден в Google Drive! Создай его вручную.")
             except Exception as e:
                 st.error(f"שגיאה בשמירת הגדרות: {e}")
+
+    # ДОБАВЛЕН КОПИРАЙТ В ЛЕВЫЙ НИЖНИЙ УГОЛ С ГОТИЧЕСКИМ ШРИФТОМ ДЛЯ WIDER
+    st.markdown(f"""
+        <div style="direction: ltr !important; text-align: left !important; margin-top: 50px; font-size: 11px; color: {t['text']}; opacity: 0.5;">
+            <span style="font-family: 'Old English Text MT', 'Cloister Black', 'UnifrakturMaguntia', 'Blackletter', serif; font-size: 15px; font-weight: bold;">WideR</span> &copy; All rights reserved by Vadim Vagayev
+        </div>
+    """, unsafe_allow_html=True)
