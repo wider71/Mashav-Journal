@@ -124,12 +124,9 @@ def load_settings():
             done = False
             while not done: _, done = downloader.next_chunk()
             fh.seek(0)
-            data = json.loads(fh.read().decode('utf-8'))
-            if "locked_rows" not in data:
-                data["locked_rows"] = {}
-            return data
+            return json.loads(fh.read().decode('utf-8'))
         except: pass
-    return {"dropdown_emails": ["wider71@gmail.com"], "warehouse_email": "wider71@gmail.com", "theme": "Dark SCADA (כהה)", "locked_rows": {}}
+    return {"dropdown_emails": ["wider71@gmail.com"], "warehouse_email": "wider71@gmail.com", "theme": "Dark SCADA (כהה)"}
 
 def save_settings_to_drive(settings_dict):
     settings_json_str = json.dumps(settings_dict, ensure_ascii=False, indent=4)
@@ -397,7 +394,7 @@ with tab_log:
         st.markdown(f"""
             <div style="display: flex; align-items: baseline; justify-content: center; direction: rtl; gap: 15px;">
                 <span style="color: {t['title']}; font-weight: bold; font-size: 20px;">דוח משמרת תחנת כוח משאב</span>
-                <span style="color: #7f8c8d; font-size: 14px; font-family: monospace;">OperaJ 5.7</span>
+                <span style="color: #7f8c8d; font-size: 14px; font-family: monospace;">OperaJ 5.8</span>
             </div>
         """, unsafe_allow_html=True)
     with col_cal_r:
@@ -436,119 +433,45 @@ with tab_log:
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
-        # --- ЛОГИКА ГЛОБАЛЬНОГО ЗАМКА НА ТУРБИНУ ---
-        lock_key = u_name
-        lock_info = app_settings.get("locked_rows", {}).get(lock_key, None)
-        is_locked = False
-        if lock_info:
-            try:
-                s_date = datetime.strptime(lock_info["start_date"], "%Y-%m-%d").date()
-                e_date = datetime.strptime(lock_info["end_date"], "%Y-%m-%d").date()
-                if s_date <= st.session_state.log_date <= e_date:
-                    is_locked = True
-            except: pass
-
-        lock_icon = "🔒" if is_locked else "🔓"
-        
         with c_morn:
             st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                c_d, c_h, c_b, c_l = st.columns([10.0, 2.5, 1.5, 1.5])
-                
-                key_d_m = f"dm_{u_num}_{idx}_{date_str}"
-                key_h_m = f"hm_{u_num}_{idx}_{date_str}"
-                disabled_m = (idx == 0 and is_locked)
-                
-                # ПРИНУДИТЕЛЬНАЯ ВШИВКА ТЕКСТА ПЕРЕД ОТРИСОВКОЙ СТРИМЛИТА
-                if disabled_m:
-                    st.session_state[key_d_m] = lock_info.get("Description", "")
-                    st.session_state[key_h_m] = lock_info.get("Hour", "")
-                else:
-                    if key_d_m not in st.session_state: st.session_state[key_d_m] = m_data[idx].get('Description','')
-                    if key_h_m not in st.session_state: st.session_state[key_h_m] = m_data[idx].get('Hour','')
-                
+                c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
                 with c_d:
-                    d_m = st.text_input("dm_input", key=key_d_m, label_visibility="collapsed", disabled=disabled_m)
+                    d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with c_h:
-                    h_m = st.text_input("hm_input", key=key_h_m, label_visibility="collapsed", disabled=disabled_m)
+                    h_m = st.text_input(f"hm_{u_num}_{idx}", value=m_data[idx].get('Hour',''), key=f"hm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with c_b:
                     if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
-                        h_val_cur = st.session_state.get(key_h_m, "")
-                        d_val_cur = st.session_state.get(key_d_m, "")
+                        h_val_cur = st.session_state.get(f"hm_{u_num}_{idx}_{date_str}", "")
+                        d_val_cur = st.session_state.get(f"dm_{u_num}_{idx}_{date_str}", "")
                         if h_val_cur.strip() or d_val_cur.strip():
                             success, msg = send_warehouse_email(warehouse_email_target, u_name, "בוקר", h_val_cur, d_val_cur, date_str)
                             if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
-                with c_l:
-                    if idx == 0:
-                        if st.button(lock_icon, key=f"btn_lock_m_{u_num}_{date_str}", type="secondary", use_container_width=True):
-                            if is_locked:
-                                if lock_key in app_settings.get("locked_rows", {}): del app_settings["locked_rows"][lock_key]
-                            else:
-                                if "locked_rows" not in app_settings: app_settings["locked_rows"] = {}
-                                app_settings["locked_rows"][lock_key] = {
-                                    "Description": st.session_state.get(key_d_m, ""),
-                                    "Hour": st.session_state.get(key_h_m, ""),
-                                    "start_date": date_str,
-                                    "end_date": (st.session_state.log_date + timedelta(days=6)).strftime("%Y-%m-%d")
-                                }
-                            save_settings_to_drive(app_settings)
-                            st.cache_data.clear()
-                            st.rerun()
-                
-                # БЕЗОПАСНОЕ СОХРАНЕНИЕ ДАННЫХ ИЗ СЕССИИ (НЕ ИЗ ВИДЖЕТА)
-                saved_inputs[(u_name, 'Morning', idx)] = (st.session_state[key_h_m], st.session_state[key_d_m])
+                saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
                 
         with c_night:
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                c_d, c_h, c_b, c_l = st.columns([10.0, 2.5, 1.5, 1.5])
-                
-                key_d_n = f"dn_{u_num}_{idx}_{date_str}"
-                key_h_n = f"hn_{u_num}_{idx}_{date_str}"
-                disabled_n = (idx == 0 and is_locked)
-                
-                if disabled_n:
-                    st.session_state[key_d_n] = lock_info.get("Description", "")
-                    st.session_state[key_h_n] = lock_info.get("Hour", "")
-                else:
-                    if key_d_n not in st.session_state: st.session_state[key_d_n] = n_data[idx].get('Description','')
-                    if key_h_n not in st.session_state: st.session_state[key_h_n] = n_data[idx].get('Hour','')
-                
+                c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
                 with c_d:
-                    d_n = st.text_input("dn_input", key=key_d_n, label_visibility="collapsed", disabled=disabled_n)
+                    d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with c_h:
-                    h_n = st.text_input("hn_input", key=key_h_n, label_visibility="collapsed", disabled=disabled_n)
+                    h_n = st.text_input(f"hn_{u_num}_{idx}", value=n_data[idx].get('Hour',''), key=f"hn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with c_b:
                     if st.button("@", key=f"btn_wh_n_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
-                        h_val_cur = st.session_state.get(key_h_n, "")
-                        d_val_cur = st.session_state.get(key_d_n, "")
+                        h_val_cur = st.session_state.get(f"hn_{u_num}_{idx}_{date_str}", "")
+                        d_val_cur = st.session_state.get(f"dn_{u_num}_{idx}_{date_str}", "")
                         if h_val_cur.strip() or d_val_cur.strip():
                             success, msg = send_warehouse_email(warehouse_email_target, u_name, "לילה", h_val_cur, d_val_cur, date_str)
                             if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
-                with c_l:
-                    if idx == 0:
-                        if st.button(lock_icon, key=f"btn_lock_n_{u_num}_{date_str}", type="secondary", use_container_width=True):
-                            if is_locked:
-                                if lock_key in app_settings.get("locked_rows", {}): del app_settings["locked_rows"][lock_key]
-                            else:
-                                if "locked_rows" not in app_settings: app_settings["locked_rows"] = {}
-                                app_settings["locked_rows"][lock_key] = {
-                                    "Description": st.session_state.get(key_d_n, ""),
-                                    "Hour": st.session_state.get(key_h_n, ""),
-                                    "start_date": date_str,
-                                    "end_date": (st.session_state.log_date + timedelta(days=6)).strftime("%Y-%m-%d")
-                                }
-                            save_settings_to_drive(app_settings)
-                            st.cache_data.clear()
-                            st.rerun()
-                            
-                saved_inputs[(u_name, 'Night', idx)] = (st.session_state[key_h_n], st.session_state[key_d_n])
+                saved_inputs[(u_name, 'Night', idx)] = (h_n, d_n)
 
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
@@ -743,8 +666,7 @@ with tab_settings:
             new_settings = {
                 "dropdown_emails": [e.strip() for e in new_emails_str.split("\n") if e.strip()],
                 "warehouse_email": new_wh_email.strip(),
-                "theme": selected_theme,
-                "locked_rows": app_settings.get("locked_rows", {})
+                "theme": selected_theme
             }
             if save_settings_to_drive(new_settings):
                 st.cache_data.clear()
