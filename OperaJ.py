@@ -131,7 +131,10 @@ def load_settings():
 app_settings = load_settings()
 warehouse_email_target = app_settings.get("warehouse_email", "wider71@gmail.com")
 dropdown_emails_list = app_settings.get("dropdown_emails", ["wider71@gmail.com"])
-current_theme = app_settings.get("theme", "Dark SCADA (כהה)")
+
+# Инициализация темы в session_state для мгновенного переключения
+if 'ui_theme' not in st.session_state:
+    st.session_state.ui_theme = app_settings.get("theme", "Dark SCADA (כהה)")
 
 # --- 4. ДИНАМИЧЕСКИЕ ТЕМЫ И CSS ---
 THEMES = {
@@ -167,7 +170,7 @@ THEMES = {
     }
 }
 
-t = THEMES.get(current_theme, THEMES["Dark SCADA (כהה)"])
+t = THEMES.get(st.session_state.ui_theme, THEMES["Dark SCADA (כהה)"])
 
 st.markdown(f"""
     <style>
@@ -621,8 +624,13 @@ with tab_settings:
     with col_set_1:
         st.markdown(f"<div style='color: {t['title']}; font-weight: bold; font-size: 16px;'>בחירת נושא (Theme):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
         theme_keys = list(THEMES.keys())
-        new_theme = st.selectbox("Theme", theme_keys, index=theme_keys.index(current_theme), label_visibility="collapsed")
+        selected_theme = st.selectbox("Theme", theme_keys, index=theme_keys.index(st.session_state.ui_theme), label_visibility="collapsed")
         
+        # Мгновенная смена темы
+        if selected_theme != st.session_state.ui_theme:
+            st.session_state.ui_theme = selected_theme
+            st.rerun()
+            
     with col_set_2:
         st.markdown(f"<div style='color: {t['title']}; font-weight: bold; font-size: 16px;'>אימייל מחסן (לכפתור @ בדוח משמרת):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
         new_wh_email = st.text_input("WH Email", value=warehouse_email_target, label_visibility="collapsed")
@@ -640,7 +648,7 @@ with tab_settings:
             new_settings = {
                 "dropdown_emails": [e.strip() for e in new_emails_str.split("\n") if e.strip()],
                 "warehouse_email": new_wh_email.strip(),
-                "theme": new_theme
+                "theme": selected_theme
             }
             
             settings_json_str = json.dumps(new_settings, ensure_ascii=False, indent=4)
@@ -651,12 +659,10 @@ with tab_settings:
             try:
                 if file_id:
                     drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+                    st.cache_data.clear()
+                    st.success("ההגדרות נשמרו בהצלחה בענן!")
+                    st.rerun()
                 else:
-                    file_metadata = {'name': SETTINGS_FILE, 'parents': [FOLDER_ID]}
-                    drive_service.files().create(body=file_metadata, media_body=media, supportsAllDrives=True).execute()
-                
-                st.cache_data.clear()
-                st.success("ההגדרות נשמרו בהצלחה בענן!")
-                st.rerun()
+                    st.error("Файл mashav_settings.json не найден в Google Drive! Создай его вручную.")
             except Exception as e:
                 st.error(f"שגיאה בשמירת הגדרות: {e}")
