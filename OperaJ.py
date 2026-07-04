@@ -377,9 +377,9 @@ with tab_log:
         if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=120)
     with col_title:
         st.markdown(f"""
-            <div style='text-align: center;'>
-                <h4 style='color: {t['title']}; margin: 0; font-weight:bold; font-size:20px;'>דוח משמרת תחנת כוח משאב</h4>
-                <div style='color: {t['text']}; font-size: 13px; font-family: monospace; margin-top: 5px; opacity: 0.7;'>OperaJ 5.3</div>
+            <div style="text-align: center;">
+                <div style="color: {t['title']}; font-weight: bold; font-size: 20px;">דוח משמרת תחנת כוח משאב</div>
+                <div style="color: #7f8c8d; font-size: 14px; font-family: monospace;">OperaJ 5.4</div>
             </div>
         """, unsafe_allow_html=True)
     with col_cal_r:
