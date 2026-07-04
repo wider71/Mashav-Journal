@@ -127,6 +127,11 @@ st.markdown("""
     div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
+    /* СДВИГ ЛОГОТИПА ВВЕРХ */
+    div[data-testid="stImage"] {
+        margin-top: -20px !important;
+    }
+    
     /* СТИЛЬ ДЛЯ ТЕКСТОВЫХ ПОЛЕЙ (ИНДУСТРИАЛЬНЫЙ ТЕМНЫЙ) */
     div[data-testid="stTextInput"] div[data-baseweb="input"] {
         border-radius: 0px !important; 
