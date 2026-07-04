@@ -116,7 +116,7 @@ def send_warehouse_email(to_email, unit, shift, hour, desc, date_str):
 st.markdown("""
     <style>
     .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
-    .stApp { background-color: #9ba4b5; }
+    .stApp { background-color: #14161d; }
     * { direction: rtl !important; text-align: right !important; }
     
     div[data-testid="stVerticalBlock"] { gap: 0px !important; }
@@ -126,6 +126,7 @@ st.markdown("""
     div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
+    /* СТИЛЬ ДЛЯ ТЕКСТОВЫХ ПОЛЕЙ (ИНДУСТРИАЛЬНЫЙ ТЕМНЫЙ) */
     div[data-testid="stTextInput"] div[data-baseweb="input"] {
         border-radius: 0px !important; 
         height: 40px !important;
@@ -137,57 +138,57 @@ st.markdown("""
     }
     
     div[data-testid="stTextInput"] input {
-        background-color: #eaf0dc !important; 
+        background-color: #2d333b !important; 
         direction: rtl !important;
         text-align: right !important;
         font-size: 16px !important;
         font-weight: bold !important;
-        color: #000000 !important;
+        color: #adbac7 !important;
         padding-right: 8px !important;
         border-radius: 0px !important;
-        border: 1px solid #7f8c8d !important;
+        border: 1px solid #444c56 !important;
         height: 40px !important;
         margin: 0px !important;
         margin-top: -1px !important;
         margin-right: -1px !important; 
     }
 
+    /* ЗАГОЛОВКИ СМЕН В СТИЛЕ SCADA ПАНЕЛИ */
     .header-orange, .header-blue {
         text-align: center !important;
         font-weight: bold !important;
         font-size: 16px !important;
-        color: white !important;
+        color: #ffffff !important;
         padding: 10px 0px !important; 
-        border: 1px solid #7f8c8d !important;
+        border: 1px solid #444c56 !important;
         display: block !important;
         margin: 0px !important;
         margin-right: -1px !important;
         box-sizing: border-box !important;
+        background-color: #22272e !important;
     }
-    .header-orange { background-color: #d35400 !important; }
-    .header-blue { background-color: #2980b9 !important; }
-    .header-orange p, .header-blue p { 
-        margin: 0px !important; 
-        padding: 0px !important; 
-        line-height: normal !important; 
-    }
+    .header-orange { border-top: 3px solid #d35400 !important; }
+    .header-blue { border-top: 3px solid #2980b9 !important; }
+    .header-orange p, .header-blue p { margin: 0px !important; padding: 0px !important; line-height: normal !important; }
 
+    /* НОМЕРА В עבודות */
     .num-box {
-        background-color: #2c3e50 !important;
-        color: white !important;
+        background-color: #22272e !important;
+        color: #adbac7 !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         font-weight: bold !important;
         font-size: 16px !important;
         height: 40px !important;
-        border: 1px solid #7f8c8d !important;
+        border: 1px solid #444c56 !important;
         margin: 0px !important;
         margin-top: -1px !important;
         margin-right: -1px !important;
     }
     .num-box p { margin: 0px !important; padding: 0px !important; }
     
+    /* КНОПКА @ - ИНДУСТРИАЛЬНЫЙ ТЕМНЫЙ СТИЛЬ */
     div.row-widget.stButton { margin: 0px !important; padding: 0px !important; }
     button[kind="secondary"] {
         height: 40px !important;
@@ -196,9 +197,9 @@ st.markdown("""
         margin: 0px !important;
         padding: 0px !important;
         border-radius: 0px !important;
-        border: 1px solid #7f8c8d !important;
-        background-color: #27ae60 !important;
-        color: white !important;
+        border: 1px solid #444c56 !important;
+        background-color: #22272e !important;
+        color: #27ae60 !important;
         font-weight: bold !important;
         font-size: 18px !important;
         display: flex !important;
@@ -207,19 +208,28 @@ st.markdown("""
         margin-top: -1px !important;
         z-index: 10;
     }
+    button[kind="secondary"]:hover {
+        background-color: #27ae60 !important;
+        color: #ffffff !important;
+    }
 
-    .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
-    .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
-    .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
+    /* ДИЗАЙН ОСНОВНЫХ КНОПОК И ВКЛАДОК */
+    .stTabs [data-baseweb="tab-list"] { background-color: #22272e; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
+    .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: #adbac7 !important; padding: 10px 20px; }
+    .stTabs [aria-selected="true"] { background-color: #14161d !important; color: #fff !important; border-radius: 5px; border: 1px solid #444c56 !important; }
     .stButton button[kind="primary"] { 
-        background-color: #28a745 !important; 
+        background-color: #27ae60 !important; 
         color: white !important; 
         font-weight: bold; 
         font-size: 18px; 
-        border: 2px solid #1e7e34 !important; 
+        border: 1px solid #1e7e34 !important; 
         height: 42px !important;
         margin: 0px !important;
     }
+
+    /* Цвета текстов для темной темы */
+    h3, h4 { color: #ffffff !important; font-weight: bold !important; }
+    div[data-testid="stMarkdownContainer"] p { color: #adbac7 !important; }
     
     [data-testid="stDataFrame"] { border: none !important; }
     </style>
@@ -256,7 +266,7 @@ def get_operators(file_id, target_day):
         target_str = str(target_day)
         if target_str not in cleaned_cal_row: return ["חסר"], []
         target_col = cleaned_cal_row.index(target_str)
-        known = ['אמיר', 'נתי', 'גידי', 'אודל', 'ויקטור', 'יבגני', 'ליאור', 'ודים', "ז'קה", 'סשה']
+        known = ['אמיר', 'נתי', 'גידי', 'אודל', 'ויקטור', 'יבגni', 'ליאור', 'ודים', "ז'קה", 'סשה']
         s1, s2 = [], []
         for row in raw:
             for val in row:
@@ -335,11 +345,7 @@ def generate_safe_styles(df, target_col):
             elif val in ['ח', 'מ']: 
                 css += 'background-color: #f5b7b1; color: black; font-weight: bold; font-size: 18px;'
             else: 
-                css += 'color: black; font-size: 16px;'
-            
-            # Зеленая рамка
-            if str(col) == str(target_col):
-                css += ' border: 3px solid #2ecc71 !important;'
+                css += 'color: #adbac7; background-color: #14161d; font-size: 16px;'
                 
             styles.at[idx, col] = css
     return styles
@@ -355,7 +361,7 @@ with tab_log:
     with col_logo:
         if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=120)
     with col_title:
-        st.markdown("<h4 style='color: #2c3e50; margin-top:2px; font-weight:bold; font-size:20px;'>דוח משמרת תחנת כוח משאב</h4>", unsafe_allow_html=True)
+        st.markdown("<h4 style='color: #ffffff; margin-top:2px; font-weight:bold; font-size:20px;'>דוח משמרת תחנת כוח משאב</h4>", unsafe_allow_html=True)
     with col_cal_r:
         if st.button("▶ יום הבא", type="primary", use_container_width=True): st.session_state.log_date += timedelta(days=1); st.rerun()
     with col_cal_m:
@@ -371,11 +377,11 @@ with tab_log:
 
     st.markdown(f"""
         <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <div style="flex: 1; border: 2px solid #2c3e50; padding: 4px 12px; background-color: #f8f9fa; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <b style="color: #333; font-size: 14px;">🌞 משמרת בוקר:</b> <span style="font-size: 16px; font-weight: bold; color: black;">{', '.join(s1_names)}</span>
+            <div style="flex: 1; border: 1px solid #444c56; padding: 4px 12px; background-color: #22272e; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                <b style="color: #d35400; font-size: 14px;">🌞 משמרת בוקר:</b> <span style="font-size: 16px; font-weight: bold; color: #ffffff;">{', '.join(s1_names)}</span>
             </div>
-            <div style="flex: 1; border: 2px solid black; padding: 4px 12px; background-color: #343a40; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <b style="color: #ddd; font-size: 14px;">🌙 משמרת לילה:</b> <span style="font-size: 16px; font-weight: bold; color: white;">{', '.join(s2_names)}</span>
+            <div style="flex: 1; border: 1px solid #444c56; padding: 4px 12px; background-color: #22272e; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                <b style="color: #2980b9; font-size: 14px;">🌙 משמרת לילה:</b> <span style="font-size: 16px; font-weight: bold; color: #ffffff;">{', '.join(s2_names)}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -397,7 +403,6 @@ with tab_log:
             # ПРАВАЯ СТОРОНА: ОРАНЖЕВАЯ (УТРО)
             st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                # ВНУТРИ СТРОКИ: [0]=Описание (Справа), [1]=Время (Центр), [2]=Кнопка @ (Слева)
                 c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
                 with c_d:
                     d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
@@ -419,7 +424,6 @@ with tab_log:
             # ЛЕВАЯ СТОРОНА: СИНЯЯ (НОЧЬ)
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                # ВНУТРИ СТРОКИ: [0]=Описание (Справа), [1]=Время (Центр), [2]=Кнопка @ (Слева)
                 c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
                 with c_d:
                     d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
@@ -503,7 +507,7 @@ with tab_sch:
             df_ui = df_clean[rev_cols]
             df_ui.rename(columns={'0': 'שם'}, inplace=True)
             
-            # Точный поиск колонки дня для зеленой рамки
+            # Точный поиск колонки дня
             target_day_str = str(st.session_state.log_date.day)
             target_col_name = None
             for idx, row in df_ui.iterrows():
@@ -514,7 +518,7 @@ with tab_sch:
                             target_col_name = str(col)
                     break
             
-            # БЕЗОПАСНАЯ ГЕНЕРАЦИЯ СТИЛЕЙ С РАМКОЙ
+            # БЕЗОПАСНАЯ ГЕНЕРАЦИЯ СТИЛЕЙ С СИНИМИ СМЕНАМИ
             styled_df = df_ui.style.apply(lambda df: generate_safe_styles(df, target_col_name), axis=None)
             styled_df = styled_df.set_properties(**{'text-align': 'center', 'font-weight': 'bold'})
             
