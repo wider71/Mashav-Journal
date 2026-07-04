@@ -132,7 +132,6 @@ app_settings = load_settings()
 warehouse_email_target = app_settings.get("warehouse_email", "wider71@gmail.com")
 dropdown_emails_list = app_settings.get("dropdown_emails", ["wider71@gmail.com"])
 
-# Инициализация темы в session_state для мгновенного переключения
 if 'ui_theme' not in st.session_state:
     st.session_state.ui_theme = app_settings.get("theme", "Dark SCADA (כהה)")
 
@@ -159,14 +158,14 @@ THEMES = {
         "sum_n_bg": "#343a40", "sum_n_txt": "white"
     },
     "Light (בהיר)": {
-        "bg": "#f4f6f9", "input_bg": "#ffffff", "text": "#2c3e50", "border": "#ced4da",
-        "tab_bg": "#e9ecef", "tab_text": "#495057", "tab_active": "#ffffff", "tab_active_txt": "#2c3e50",
-        "num_bg": "#e9ecef", "num_txt": "#2c3e50", "title": "#2c3e50",
-        "hdr_o": "background-color: #ffffff !important; border-top: 3px solid #d35400 !important; color: #2c3e50 !important;",
-        "hdr_b": "background-color: #ffffff !important; border-top: 3px solid #2980b9 !important; color: #2c3e50 !important;",
-        "btn_sec": "background-color: #ffffff !important; color: #27ae60 !important;",
-        "sum_m_bg": "#ffffff", "sum_m_txt": "#2c3e50", "sum_border": "#ced4da",
-        "sum_n_bg": "#ffffff", "sum_n_txt": "#2c3e50"
+        "bg": "#e4e8ec", "input_bg": "#f4f6f9", "text": "#2c3e50", "border": "#bdc3c7",
+        "tab_bg": "#cfd6df", "tab_text": "#495057", "tab_active": "#f4f6f9", "tab_active_txt": "#2c3e50",
+        "num_bg": "#cfd6df", "num_txt": "#2c3e50", "title": "#2c3e50",
+        "hdr_o": "background-color: #f4f6f9 !important; border-top: 3px solid #d35400 !important; color: #2c3e50 !important;",
+        "hdr_b": "background-color: #f4f6f9 !important; border-top: 3px solid #2980b9 !important; color: #2c3e50 !important;",
+        "btn_sec": "background-color: #f4f6f9 !important; color: #27ae60 !important;",
+        "sum_m_bg": "#f4f6f9", "sum_m_txt": "#2c3e50", "sum_border": "#bdc3c7",
+        "sum_n_bg": "#f4f6f9", "sum_n_txt": "#2c3e50"
     }
 }
 
