@@ -376,10 +376,11 @@ with tab_log:
     with col_logo:
         if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=120)
     with col_title:
+        # ГОРИЗОНТАЛЬНЫЙ FLEX-БЛОК ДЛЯ ИСКЛЮЧЕНИЯ ОБРЕЗАНИЯ ВЫСОТЫ
         st.markdown(f"""
-            <div style="text-align: center;">
-                <div style="color: {t['title']}; font-weight: bold; font-size: 20px;">דוח משמרת תחנת כוח משאב</div>
-                <div style="color: #7f8c8d; font-size: 14px; font-family: monospace;">OperaJ 5.4</div>
+            <div style="display: flex; align-items: baseline; justify-content: center; direction: rtl; gap: 15px;">
+                <span style="color: {t['title']}; font-weight: bold; font-size: 20px;">דוח משמרת תחנת כוח משאב</span>
+                <span style="color: #7f8c8d; font-size: 14px; font-family: monospace;">OperaJ 5.5</span>
             </div>
         """, unsafe_allow_html=True)
     with col_cal_r:
@@ -670,7 +671,6 @@ with tab_settings:
             except Exception as e:
                 st.error(f"שגיאה בשמירת הגדרות: {e}")
 
-    # КОПИРАЙТ В ЛЕВОМ НИЖНЕМ УГЛУ
     st.markdown(f"""
         <div style="direction: ltr !important; text-align: left !important; margin-top: 50px; font-size: 11px; color: {t['text']}; opacity: 0.5;">
             <span style="font-family: 'Old English Text MT', 'Cloister Black', 'UnifrakturMaguntia', 'Blackletter', serif; font-size: 15px; font-weight: bold;">WideR</span> &copy; All rights reserved by Vadim Vagayev
