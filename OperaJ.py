@@ -371,17 +371,14 @@ with tab_log:
     for u_name, u_num in units:
         st.markdown(f'<div style="height:15px;"></div>', unsafe_allow_html=True)
         
-        # ПРАВИЛЬНЫЙ RTL-ПОРЯДОК: [0]=Слева (Ночь), [2]=Справа (Утро)
         c_night, c_space, c_morn = st.columns([10, 0.5, 10])
         
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_night:
-            # ЛЕВАЯ СТОРОНА: СИНЯЯ (НОЧЬ)
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                # ВНУТРИ СТРОКИ: [0]=Слева(Описание), [1]=Центр(Время), [2]=Справа(Кнопка @)
                 c_d, c_h, c_b = st.columns([11.5, 2.5, 1])
                 with c_d:
                     d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
@@ -400,10 +397,8 @@ with tab_log:
                 saved_inputs[(u_name, 'Night', idx)] = (h_n, d_n)
                 
         with c_morn:
-            # ПРАВАЯ СТОРОНА: ОРАНЖЕВАЯ (УТРО)
             st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                # ВНУТРИ СТРОКИ: [0]=Слева(Описание), [1]=Центр(Время), [2]=Справа(Кнопка @)
                 c_d, c_h, c_b = st.columns([11.5, 2.5, 1])
                 with c_d:
                     d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
@@ -502,7 +497,6 @@ with tab_jobs:
     saved_jobs_inputs = []
     
     for i in range(15):
-        # [0]=Текст (Слева), [1]=Номер (Справа)
         c_task, c_num = st.columns([14, 1])
         with c_num:
             st.markdown(f'<div class="num-box"><p>{i+1}</p></div>', unsafe_allow_html=True)
