@@ -17,6 +17,7 @@ from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 JOURNAL_DB = 'journal_db.csv'
 JOBS_FILE = 'jobs_internal.xlsx'
 LOGO_FILE = 'Mashav_Logo.png'
+SETTINGS_FILE = 'mashav_settings.json'
 
 MONTH_MARKERS = {
     1: ['01', 'jan', 'january', 'ינואר'], 2: ['02', 'feb', 'february', 'פברואר'],
@@ -232,6 +233,26 @@ st.markdown("""
     div[data-testid="stMarkdownContainer"] p { color: #adbac7 !important; }
     
     [data-testid="stDataFrame"] { border: none !important; }
+    
+    /* НАСТРОЙКИ: Текстовые поля с английским языком */
+    div[data-testid="stTextArea"] textarea {
+        background-color: #2d333b !important;
+        color: #adbac7 !important;
+        border: 1px solid #444c56 !important;
+        border-radius: 0px !important;
+        direction: ltr !important; 
+        text-align: left !important;
+        font-size: 16px !important;
+    }
+    div[data-testid="stSelectbox"] div[role="button"] {
+        background-color: #2d333b !important;
+        color: #adbac7 !important;
+        border: 1px solid #444c56 !important;
+        border-radius: 0px !important;
+    }
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] {
+        direction: ltr !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -266,7 +287,7 @@ def get_operators(file_id, target_day):
         target_str = str(target_day)
         if target_str not in cleaned_cal_row: return ["חסר"], []
         target_col = cleaned_cal_row.index(target_str)
-        known = ['אמיר', 'נתי', 'גידי', 'אודל', 'ויקטור', 'יבגni', 'ליאור', 'ודים', "ז'קה", 'סשה']
+        known = ['אמיר', 'נתי', 'גידי', 'אודל', 'ויקטור', 'יבגני', 'ליאור', 'ודים', "ז'קה", 'סשה']
         s1, s2 = [], []
         for row in raw:
             for val in row:
@@ -326,19 +347,29 @@ def load_jobs_db(target_date):
         except: pass
     return [""] * 15
 
-# БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ СТИЛЕЙ СИДУРА
+@st.cache_data(ttl=5)
+def load_settings():
+    file_id = get_file_id(SETTINGS_FILE)
+    if file_id:
+        try:
+            request = drive_service.files().get_media(fileId=file_id)
+            fh = io.BytesIO(); downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done: _, done = downloader.next_chunk()
+            fh.seek(0)
+            return json.loads(fh.read().decode('utf-8'))
+        except: pass
+    return {"dropdown_emails": ["wider71@gmail.com"], "warehouse_email": "wider71@gmail.com"}
+
 def generate_safe_styles(df, target_col):
     styles = pd.DataFrame('', index=df.index, columns=df.columns)
     for col in df.columns:
         for idx in df.index:
             val = str(df.at[idx, col]).split('.')[0].strip()
             css = ''
-            
-            # Обновленные цвета и увеличенный шрифт (18px)
             if val == '1': 
                 css += 'background-color: #a9dfbf; color: black; font-weight: bold; font-size: 18px;'
             elif val == '2': 
-                # Светло-синеголубой фон вместо серого
                 css += 'background-color: #85c1e9; color: black; font-weight: bold; font-size: 18px;'
             elif val in ['8', '9']: 
                 css += 'background-color: #f9e79f; color: black; font-size: 18px;'
@@ -346,12 +377,19 @@ def generate_safe_styles(df, target_col):
                 css += 'background-color: #f5b7b1; color: black; font-weight: bold; font-size: 18px;'
             else: 
                 css += 'color: #adbac7; background-color: #14161d; font-size: 16px;'
+            
+            if str(col) == str(target_col):
+                css += ' border: 3px solid #2ecc71 !important;'
                 
             styles.at[idx, col] = css
     return styles
 
+app_settings = load_settings()
+warehouse_email_target = app_settings.get("warehouse_email", "wider71@gmail.com")
+dropdown_emails_list = app_settings.get("dropdown_emails", ["wider71@gmail.com"])
+
 # --- 5. ВКЛАДКИ ОКОН ---
-tab_log, tab_sch, tab_jobs = st.tabs(["דוח משמרת", "סידור", "עבודות היום"])
+tab_log, tab_sch, tab_jobs, tab_settings = st.tabs(["דוח משמרת", "סידור", "עבודות היום", "הגדרות"])
 
 # ==========================================
 # ОКНО 1: ОПЕРАТИВНЫЙ ЖУРНАЛ
@@ -393,14 +431,12 @@ with tab_log:
     for u_name, u_num in units:
         st.markdown(f'<div style="height:15px;"></div>', unsafe_allow_html=True)
         
-        # ОСНОВНЫЕ СТОЛБЦЫ ИЗ ВЕРСИИ 3.7
         c_morn, c_space, c_night = st.columns([10, 0.5, 10])
         
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_morn:
-            # ПРАВАЯ СТОРОНА: ОРАНЖЕВАЯ (УТРО)
             st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
                 c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
@@ -413,7 +449,7 @@ with tab_log:
                         h_val_cur = st.session_state.get(f"hm_{u_num}_{idx}_{date_str}", "")
                         d_val_cur = st.session_state.get(f"dm_{u_num}_{idx}_{date_str}", "")
                         if h_val_cur.strip() or d_val_cur.strip():
-                            success, msg = send_warehouse_email("wider71@gmail.com", u_name, "בוקר", h_val_cur, d_val_cur, date_str)
+                            success, msg = send_warehouse_email(warehouse_email_target, u_name, "בוקר", h_val_cur, d_val_cur, date_str)
                             if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
@@ -421,7 +457,6 @@ with tab_log:
                 saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
                 
         with c_night:
-            # ЛЕВАЯ СТОРОНА: СИНЯЯ (НОЧЬ)
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
                 c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
@@ -434,7 +469,7 @@ with tab_log:
                         h_val_cur = st.session_state.get(f"hn_{u_num}_{idx}_{date_str}", "")
                         d_val_cur = st.session_state.get(f"dn_{u_num}_{idx}_{date_str}", "")
                         if h_val_cur.strip() or d_val_cur.strip():
-                            success, msg = send_warehouse_email("wider71@gmail.com", u_name, "לילה", h_val_cur, d_val_cur, date_str)
+                            success, msg = send_warehouse_email(warehouse_email_target, u_name, "לילה", h_val_cur, d_val_cur, date_str)
                             if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
@@ -471,7 +506,7 @@ with tab_log:
         btn_send_log = st.button("✉️ שלח יומן", type="primary", use_container_width=True)
         
     with col_addr:
-        target_log_email = st.selectbox("לשלוח יומן ל:", ["wider71@gmail.com"], key="log_email", label_visibility="collapsed")
+        target_log_email = st.selectbox("לשלוח יומן ל:", dropdown_emails_list, key="log_email", label_visibility="collapsed")
         
     if btn_send_log:
         with st.spinner("מכין ושולח דוח..."):
@@ -507,7 +542,6 @@ with tab_sch:
             df_ui = df_clean[rev_cols]
             df_ui.rename(columns={'0': 'שם'}, inplace=True)
             
-            # Точный поиск колонки дня
             target_day_str = str(st.session_state.log_date.day)
             target_col_name = None
             for idx, row in df_ui.iterrows():
@@ -518,7 +552,6 @@ with tab_sch:
                             target_col_name = str(col)
                     break
             
-            # БЕЗОПАСНАЯ ГЕНЕРАЦИЯ СТИЛЕЙ С СИНИМИ СМЕНАМИ
             styled_df = df_ui.style.apply(lambda df: generate_safe_styles(df, target_col_name), axis=None)
             styled_df = styled_df.set_properties(**{'text-align': 'center', 'font-weight': 'bold'})
             
@@ -593,10 +626,57 @@ with tab_jobs:
         btn_send_j = st.button("✉️ שלח עבודות", type="primary", use_container_width=True, key="send_jobs_btn")
         
     with col_addr_j:
-        target_email_j = st.selectbox("לשלוח עבודות ל:", ["wider71@gmail.com"], key="jobs_email_target", label_visibility="collapsed")
+        target_email_j = st.selectbox("לשלוח עבודות ל:", dropdown_emails_list, key="jobs_email_target", label_visibility="collapsed")
         
     if btn_send_j:
         with st.spinner("שולח..."):
             success, msg = send_jobs_email(target_email_j, saved_jobs_inputs, date_str)
             if success: st.success(msg)
             else: st.error(msg)
+
+# ==========================================
+# ОКНО 4: НАСТРОЙКИ (הגדרות)
+# ==========================================
+with tab_settings:
+    st.markdown("<h3>הגדרות מערכת</h3>", unsafe_allow_html=True)
+    
+    col_set_1, col_set_2 = st.columns([1, 1])
+    
+    with col_set_1:
+        st.markdown("<p style='color: #adbac7; margin-bottom: 5px; font-weight: bold;'>רשימת אימיילים (לרשימה נפתחת - אחד בכל שורה):</p>", unsafe_allow_html=True)
+        emails_str = "\n".join(dropdown_emails_list)
+        new_emails_str = st.text_area("Drop Emails", value=emails_str, height=150, label_visibility="collapsed")
+        
+    with col_set_2:
+        st.markdown("<p style='color: #adbac7; margin-bottom: 5px; font-weight: bold;'>אימייל מחסן (לכפתור @ בדוח משמרת):</p>", unsafe_allow_html=True)
+        new_wh_email = st.text_input("WH Email", value=warehouse_email_target, label_visibility="collapsed")
+        
+    st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
+    
+    col_save_set, _ = st.columns([1, 3])
+    with col_save_set:
+        if st.button("💾 שמור הגדרות", type="primary", use_container_width=True):
+            new_settings = {
+                "dropdown_emails": [e.strip() for e in new_emails_str.split("\n") if e.strip()],
+                "warehouse_email": new_wh_email.strip()
+            }
+            
+            settings_json_str = json.dumps(new_settings, ensure_ascii=False, indent=4)
+            fh = io.BytesIO(settings_json_str.encode('utf-8'))
+            media = MediaIoBaseUpload(fh, mimetype='application/json', resumable=True)
+            
+            file_id = get_file_id(SETTINGS_FILE)
+            try:
+                if file_id:
+                    # Обновляем существующий файл
+                    drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+                else:
+                    # Создаем новый файл, если его еще нет
+                    file_metadata = {'name': SETTINGS_FILE, 'parents': [FOLDER_ID]}
+                    drive_service.files().create(body=file_metadata, media_body=media, supportsAllDrives=True).execute()
+                
+                st.cache_data.clear()
+                st.success("ההגדרות נשמרו בהצלחה בענן!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"שגיאה בשמירת הגדרות: {e}")
