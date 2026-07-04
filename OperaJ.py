@@ -226,6 +226,9 @@ st.markdown("""
         height: 42px !important;
         margin: 0px !important;
     }
+    
+    /* Скрываем лишние границы у таблицы Pandas */
+    [data-testid="stDataFrame"] { border: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -320,13 +323,24 @@ def load_jobs_db(target_date):
         except: pass
     return [""] * 15
 
-def colorize_schedule(val):
-    v = str(val).split('.')[0].strip()
-    if v == '1': return 'background-color: #a9dfbf; color: black; font-weight: bold; font-size: 16px;'
-    elif v == '2': return 'background-color: #abb2b9; color: black; font-weight: bold; font-size: 16px;'
-    elif v in ['8', '9']: return 'background-color: #f9e79f; color: black; font-size: 16px;'
-    elif v in ['ח', 'מ']: return 'background-color: #f5b7b1; color: black; font-weight: bold; font-size: 16px;'
-    return 'color: black; font-size: 16px;'
+# БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ СТИЛЕЙ СИДУРА
+def generate_safe_styles(df, target_col):
+    styles = pd.DataFrame('', index=df.index, columns=df.columns)
+    for col in df.columns:
+        for idx in df.index:
+            val = str(df.at[idx, col]).split('.')[0].strip()
+            css = ''
+            if val == '1': css += 'background-color: #a9dfbf; color: black; font-weight: bold; font-size: 16px;'
+            elif val == '2': css += 'background-color: #abb2b9; color: black; font-weight: bold; font-size: 16px;'
+            elif val in ['8', '9']: css += 'background-color: #f9e79f; color: black; font-size: 16px;'
+            elif val in ['ח', 'מ']: css += 'background-color: #f5b7b1; color: black; font-weight: bold; font-size: 16px;'
+            else: css += 'color: black; font-size: 16px;'
+            
+            if str(col) == target_col:
+                css += ' border: 3px solid #2ecc71;'
+                
+            styles.at[idx, col] = css
+    return styles
 
 # --- 5. ВКЛАДКИ ОКОН ---
 tab_log, tab_sch, tab_jobs = st.tabs(["דוח משמרת", "סידור", "עבודות היום"])
@@ -371,19 +385,18 @@ with tab_log:
     for u_name, u_num in units:
         st.markdown(f'<div style="height:15px;"></div>', unsafe_allow_html=True)
         
+        # СТОЛБЦЫ: [0] = Ночь (Слева), [2] = Утро (Справа)
         c_night, c_space, c_morn = st.columns([10, 0.5, 10])
         
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
         with c_night:
+            # ЛЕВАЯ СТОРОНА: СИНЯЯ (НОЧЬ)
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                c_d, c_h, c_b = st.columns([11.5, 2.5, 1])
-                with c_d:
-                    d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
-                with c_h:
-                    h_n = st.text_input(f"hn_{u_num}_{idx}", value=n_data[idx].get('Hour',''), key=f"hn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                # НОВЫЙ ИНДЕКС: [0]=Кнопка (Слева), [1]=Время (Центр), [2]=Описание (Справа)
+                c_b, c_h, c_d = st.columns([1.5, 2.5, 11.5])
                 with c_b:
                     if st.button("@", key=f"btn_wh_n_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
                         h_val_cur = st.session_state.get(f"hn_{u_num}_{idx}_{date_str}", "")
@@ -394,16 +407,18 @@ with tab_log:
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
+                with c_h:
+                    h_n = st.text_input(f"hn_{u_num}_{idx}", value=n_data[idx].get('Hour',''), key=f"hn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with c_d:
+                    d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 saved_inputs[(u_name, 'Night', idx)] = (h_n, d_n)
                 
         with c_morn:
+            # ПРАВАЯ СТОРОНА: ОРАНЖЕВАЯ (УТРО)
             st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                c_d, c_h, c_b = st.columns([11.5, 2.5, 1])
-                with c_d:
-                    d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
-                with c_h:
-                    h_m = st.text_input(f"hm_{u_num}_{idx}", value=m_data[idx].get('Hour',''), key=f"hm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                # НОВЫЙ ИНДЕКС: [0]=Кнопка (Слева), [1]=Время (Центр), [2]=Описание (Справа)
+                c_b, c_h, c_d = st.columns([1.5, 2.5, 11.5])
                 with c_b:
                     if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
                         h_val_cur = st.session_state.get(f"hm_{u_num}_{idx}_{date_str}", "")
@@ -414,6 +429,10 @@ with tab_log:
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
+                with c_h:
+                    h_m = st.text_input(f"hm_{u_num}_{idx}", value=m_data[idx].get('Hour',''), key=f"hm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with c_d:
+                    d_m = text_input_fixed = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
 
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
@@ -482,7 +501,11 @@ with tab_sch:
             df_ui = df_clean[rev_cols]
             df_ui.rename(columns={'0': 'שם'}, inplace=True)
             
-            styled_df = df_ui.style.map(colorize_schedule).set_properties(**{'text-align': 'center', 'font-weight': 'bold'})
+            # БЕЗОПАСНАЯ ГЕНЕРАЦИЯ ЗЕЛЕНОЙ РАМКИ
+            target_day_str = str(st.session_state.log_date.day)
+            styled_df = df_ui.style.apply(lambda df: generate_safe_styles(df, target_day_str), axis=None)
+            styled_df = styled_df.set_properties(**{'text-align': 'center', 'font-weight': 'bold'})
+            
             st.dataframe(styled_df, use_container_width=True, height=550)
         except Exception as e: st.error(f"שגיאה: {e}")
 
