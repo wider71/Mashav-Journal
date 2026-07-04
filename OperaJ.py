@@ -113,155 +113,143 @@ def send_warehouse_email(to_email, unit, shift, hour, desc, date_str):
         <p><b>תיאור:</b> {desc}</p></body></html>"""
     return send_email_core(to_email, f"הודעה למחסן - {unit} - {date_str}", html_body)
 
-# --- 3. ТОТАЛЬНАЯ ЭКСЕЛЬ-СЕТКА (CSS) ---
-st.markdown("""
+# --- 3. ОБЛАЧНЫЕ НАСТРОЙКИ ---
+@st.cache_data(ttl=5)
+def load_settings():
+    file_id = get_file_id(SETTINGS_FILE)
+    if file_id:
+        try:
+            request = drive_service.files().get_media(fileId=file_id)
+            fh = io.BytesIO(); downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done: _, done = downloader.next_chunk()
+            fh.seek(0)
+            return json.loads(fh.read().decode('utf-8'))
+        except: pass
+    return {"dropdown_emails": ["wider71@gmail.com"], "warehouse_email": "wider71@gmail.com", "theme": "Dark SCADA (כהה)"}
+
+app_settings = load_settings()
+warehouse_email_target = app_settings.get("warehouse_email", "wider71@gmail.com")
+dropdown_emails_list = app_settings.get("dropdown_emails", ["wider71@gmail.com"])
+current_theme = app_settings.get("theme", "Dark SCADA (כהה)")
+
+# --- 4. ДИНАМИЧЕСКИЕ ТЕМЫ И CSS ---
+THEMES = {
+    "Dark SCADA (כהה)": {
+        "bg": "#14161d", "input_bg": "#2d333b", "text": "#adbac7", "border": "#444c56",
+        "tab_bg": "#22272e", "tab_text": "#adbac7", "tab_active": "#14161d", "tab_active_txt": "#ffffff",
+        "num_bg": "#22272e", "num_txt": "#adbac7", "title": "#ffffff",
+        "hdr_o": "background-color: #22272e !important; border-top: 3px solid #d35400 !important; color: #ffffff !important;",
+        "hdr_b": "background-color: #22272e !important; border-top: 3px solid #2980b9 !important; color: #ffffff !important;",
+        "btn_sec": "background-color: #22272e !important; color: #27ae60 !important;",
+        "sum_m_bg": "#22272e", "sum_m_txt": "#ffffff", "sum_border": "#444c56",
+        "sum_n_bg": "#22272e", "sum_n_txt": "#ffffff"
+    },
+    "Classic (צבעוני ישן)": {
+        "bg": "#9ba4b5", "input_bg": "#eaf0dc", "text": "#000000", "border": "#7f8c8d",
+        "tab_bg": "#7a8594", "tab_text": "white", "tab_active": "#2c3e50", "tab_active_txt": "#ffffff",
+        "num_bg": "#2c3e50", "num_txt": "white", "title": "#2c3e50",
+        "hdr_o": "background-color: #d35400 !important; color: white !important;",
+        "hdr_b": "background-color: #2980b9 !important; color: white !important;",
+        "btn_sec": "background-color: #27ae60 !important; color: white !important;",
+        "sum_m_bg": "#f8f9fa", "sum_m_txt": "black", "sum_border": "#2c3e50",
+        "sum_n_bg": "#343a40", "sum_n_txt": "white"
+    },
+    "Light (בהיר)": {
+        "bg": "#f4f6f9", "input_bg": "#ffffff", "text": "#2c3e50", "border": "#ced4da",
+        "tab_bg": "#e9ecef", "tab_text": "#495057", "tab_active": "#ffffff", "tab_active_txt": "#2c3e50",
+        "num_bg": "#e9ecef", "num_txt": "#2c3e50", "title": "#2c3e50",
+        "hdr_o": "background-color: #ffffff !important; border-top: 3px solid #d35400 !important; color: #2c3e50 !important;",
+        "hdr_b": "background-color: #ffffff !important; border-top: 3px solid #2980b9 !important; color: #2c3e50 !important;",
+        "btn_sec": "background-color: #ffffff !important; color: #27ae60 !important;",
+        "sum_m_bg": "#ffffff", "sum_m_txt": "#2c3e50", "sum_border": "#ced4da",
+        "sum_n_bg": "#ffffff", "sum_n_txt": "#2c3e50"
+    }
+}
+
+t = THEMES.get(current_theme, THEMES["Dark SCADA (כהה)"])
+
+st.markdown(f"""
     <style>
-    .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }
-    .stApp { background-color: #14161d; }
-    * { direction: rtl !important; text-align: right !important; }
+    .block-container {{ padding-top: 3.5rem !important; padding-bottom: 1rem !important; max-width: 98% !important; }}
+    .stApp {{ background-color: {t['bg']}; }}
+    * {{ direction: rtl !important; text-align: right !important; }}
     
-    div[data-testid="stVerticalBlock"] { gap: 0px !important; }
-    div[data-testid="stHorizontalBlock"] { gap: 0px !important; align-items: stretch !important; margin-bottom: 0px !important; }
-    div[data-testid="column"] { padding: 0px !important; } 
+    div[data-testid="stVerticalBlock"] {{ gap: 0px !important; }}
+    div[data-testid="stHorizontalBlock"] {{ gap: 0px !important; align-items: stretch !important; margin-bottom: 0px !important; }}
+    div[data-testid="column"] {{ padding: 0px !important; }} 
     
-    div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
-    label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
+    div.element-container {{ margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }}
+    label[data-testid="stWidgetLabel"] {{ display: none !important; height: 0px !important; margin: 0px !important; }}
     
-    /* СДВИГ ЛОГОТИПА ВВЕРХ */
-    div[data-testid="stImage"] {
-        margin-top: -20px !important;
-    }
+    div[data-testid="stImage"] {{ margin-top: -20px !important; }}
     
-    /* СТИЛЬ ДЛЯ ТЕКСТОВЫХ ПОЛЕЙ (ИНДУСТРИАЛЬНЫЙ ТЕМНЫЙ) */
-    div[data-testid="stTextInput"] div[data-baseweb="input"] {
-        border-radius: 0px !important; 
-        height: 40px !important;
-        min-height: 40px !important;
-        background-color: transparent !important; 
-        border: none !important;
-        margin: 0px !important;
-        padding: 0px !important;
-    }
+    div[data-testid="stTextInput"] div[data-baseweb="input"] {{
+        border-radius: 0px !important; height: 40px !important; min-height: 40px !important;
+        background-color: transparent !important; border: none !important; margin: 0px !important; padding: 0px !important;
+    }}
     
-    div[data-testid="stTextInput"] input {
-        background-color: #2d333b !important; 
-        direction: rtl !important;
-        text-align: right !important;
-        font-size: 16px !important;
-        font-weight: bold !important;
-        color: #adbac7 !important;
-        padding-right: 8px !important;
-        border-radius: 0px !important;
-        border: 1px solid #444c56 !important;
-        height: 40px !important;
-        margin: 0px !important;
-        margin-top: -1px !important;
-        margin-right: -1px !important; 
-    }
+    div[data-testid="stTextInput"] input {{
+        background-color: {t['input_bg']} !important; direction: rtl !important; text-align: right !important;
+        font-size: 16px !important; font-weight: bold !important; color: {t['text']} !important;
+        padding-right: 8px !important; border-radius: 0px !important; border: 1px solid {t['border']} !important;
+        height: 40px !important; margin: 0px !important; margin-top: -1px !important; margin-right: -1px !important; 
+    }}
 
-    /* ЗАГОЛОВКИ СМЕН В СТИЛЕ SCADA ПАНЕЛИ */
-    .header-orange, .header-blue {
-        text-align: center !important;
-        font-weight: bold !important;
-        font-size: 16px !important;
-        color: #ffffff !important;
-        padding: 10px 0px !important; 
-        border: 1px solid #444c56 !important;
-        display: block !important;
-        margin: 0px !important;
-        margin-right: -1px !important;
-        box-sizing: border-box !important;
-        background-color: #22272e !important;
-    }
-    .header-orange { border-top: 3px solid #d35400 !important; }
-    .header-blue { border-top: 3px solid #2980b9 !important; }
-    .header-orange p, .header-blue p { margin: 0px !important; padding: 0px !important; line-height: normal !important; }
+    .header-orange, .header-blue {{
+        text-align: center !important; font-weight: bold !important; font-size: 16px !important;
+        padding: 10px 0px !important; border: 1px solid {t['border']} !important;
+        display: block !important; margin: 0px !important; margin-right: -1px !important; box-sizing: border-box !important;
+    }}
+    .header-orange {{ {t['hdr_o']} }}
+    .header-blue {{ {t['hdr_b']} }}
+    .header-orange p, .header-blue p {{ margin: 0px !important; padding: 0px !important; line-height: normal !important; }}
 
-    /* НОМЕРА В עבודות */
-    .num-box {
-        background-color: #22272e !important;
-        color: #adbac7 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-weight: bold !important;
-        font-size: 16px !important;
-        height: 40px !important;
-        border: 1px solid #444c56 !important;
-        margin: 0px !important;
-        margin-top: -1px !important;
-        margin-right: -1px !important;
-    }
-    .num-box p { margin: 0px !important; padding: 0px !important; }
+    .num-box {{
+        background-color: {t['num_bg']} !important; color: {t['num_txt']} !important;
+        display: flex !important; align-items: center !important; justify-content: center !important;
+        font-weight: bold !important; font-size: 16px !important; height: 40px !important;
+        border: 1px solid {t['border']} !important; margin: 0px !important; margin-top: -1px !important; margin-right: -1px !important;
+    }}
+    .num-box p {{ margin: 0px !important; padding: 0px !important; }}
     
-    /* КНОПКА @ - ИНДУСТРИАЛЬНЫЙ ТЕМНЫЙ СТИЛЬ */
-    div.row-widget.stButton { margin: 0px !important; padding: 0px !important; }
-    button[kind="secondary"] {
-        height: 40px !important;
-        min-height: 40px !important;
-        width: 100% !important;
-        margin: 0px !important;
-        padding: 0px !important;
-        border-radius: 0px !important;
-        border: 1px solid #444c56 !important;
-        background-color: #22272e !important;
-        color: #27ae60 !important;
-        font-weight: bold !important;
-        font-size: 18px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        margin-top: -1px !important;
-        z-index: 10;
-    }
-    button[kind="secondary"]:hover {
-        background-color: #27ae60 !important;
-        color: #ffffff !important;
-    }
+    div.row-widget.stButton {{ margin: 0px !important; padding: 0px !important; }}
+    button[kind="secondary"] {{
+        height: 40px !important; min-height: 40px !important; width: 100% !important; margin: 0px !important; padding: 0px !important;
+        border-radius: 0px !important; border: 1px solid {t['border']} !important;
+        font-weight: bold !important; font-size: 18px !important; display: flex !important;
+        align-items: center !important; justify-content: center !important; margin-top: -1px !important; z-index: 10;
+        {t['btn_sec']}
+    }}
+    button[kind="secondary"]:hover {{ background-color: #27ae60 !important; color: #ffffff !important; }}
 
-    /* ДИЗАЙН ОСНОВНЫХ КНОПОК И ВКЛАДОК */
-    .stTabs [data-baseweb="tab-list"] { background-color: #22272e; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
-    .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: #adbac7 !important; padding: 10px 20px; }
-    .stTabs [aria-selected="true"] { background-color: #14161d !important; color: #fff !important; border-radius: 5px; border: 1px solid #444c56 !important; }
-    .stButton button[kind="primary"] { 
-        background-color: #27ae60 !important; 
-        color: white !important; 
-        font-weight: bold; 
-        font-size: 18px; 
-        border: 1px solid #1e7e34 !important; 
-        height: 42px !important;
-        margin: 0px !important;
-    }
+    .stTabs [data-baseweb="tab-list"] {{ background-color: {t['tab_bg']}; border-radius: 5px; padding: 2px; margin-bottom: 15px;}}
+    .stTabs [data-baseweb="tab"] {{ font-size: 22px !important; font-weight: bold !important; color: {t['tab_text']} !important; padding: 10px 20px; }}
+    .stTabs [aria-selected="true"] {{ background-color: {t['tab_active']} !important; color: {t['tab_active_txt']} !important; border-radius: 5px; border: 1px solid {t['border']} !important; }}
+    .stButton button[kind="primary"] {{ 
+        background-color: #27ae60 !important; color: white !important; font-weight: bold; font-size: 18px; 
+        border: 1px solid #1e7e34 !important; height: 42px !important; margin: 0px !important;
+    }}
 
-    /* Цвета текстов для темной темы */
-    h3, h4 { color: #ffffff !important; font-weight: bold !important; }
-    div[data-testid="stMarkdownContainer"] p { color: #adbac7 !important; }
+    div[data-testid="stMarkdownContainer"] p {{ color: {t['text']}; }}
     
-    [data-testid="stDataFrame"] { border: none !important; }
+    [data-testid="stDataFrame"] {{ border: none !important; }}
     
-    /* НАСТРОЙКИ: Текстовые поля с английским языком */
-    div[data-testid="stTextArea"] textarea {
-        background-color: #2d333b !important;
-        color: #adbac7 !important;
-        border: 1px solid #444c56 !important;
-        border-radius: 0px !important;
-        direction: ltr !important; 
-        text-align: left !important;
-        font-size: 16px !important;
-    }
-    div[data-testid="stSelectbox"] div[role="button"] {
-        background-color: #2d333b !important;
-        color: #adbac7 !important;
-        border: 1px solid #444c56 !important;
-        border-radius: 0px !important;
-    }
-    div[data-testid="stSelectbox"] div[data-baseweb="select"] {
-        direction: ltr !important;
-    }
+    /* НАСТРОЙКИ */
+    div[data-testid="stTextArea"] textarea {{
+        background-color: {t['input_bg']} !important; color: {t['text']} !important;
+        border: 1px solid {t['border']} !important; border-radius: 0px !important;
+        direction: ltr !important; text-align: left !important; font-size: 16px !important;
+    }}
+    div[data-testid="stSelectbox"] div[role="button"] {{
+        background-color: {t['input_bg']} !important; color: {t['text']} !important;
+        border: 1px solid {t['border']} !important; border-radius: 0px !important;
+    }}
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] {{ direction: ltr !important; }}
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. КАНАЛЫ ДАННЫХ ОБЛАКА ---
+# --- КАНАЛЫ ДАННЫХ ОБЛАКА ---
 @st.cache_data(ttl=10)
 def get_schedule_file_drive(target_month):
     markers = MONTH_MARKERS.get(target_month, [])
@@ -352,21 +340,7 @@ def load_jobs_db(target_date):
         except: pass
     return [""] * 15
 
-@st.cache_data(ttl=5)
-def load_settings():
-    file_id = get_file_id(SETTINGS_FILE)
-    if file_id:
-        try:
-            request = drive_service.files().get_media(fileId=file_id)
-            fh = io.BytesIO(); downloader = MediaIoBaseDownload(fh, request)
-            done = False
-            while not done: _, done = downloader.next_chunk()
-            fh.seek(0)
-            return json.loads(fh.read().decode('utf-8'))
-        except: pass
-    return {"dropdown_emails": ["wider71@gmail.com"], "warehouse_email": "wider71@gmail.com"}
-
-def generate_safe_styles(df, target_col):
+def generate_safe_styles(df, target_col, t_dict):
     styles = pd.DataFrame('', index=df.index, columns=df.columns)
     for col in df.columns:
         for idx in df.index:
@@ -381,17 +355,13 @@ def generate_safe_styles(df, target_col):
             elif val in ['ח', 'מ']: 
                 css += 'background-color: #f5b7b1; color: black; font-weight: bold; font-size: 18px;'
             else: 
-                css += 'color: #adbac7; background-color: #14161d; font-size: 16px;'
+                css += f"color: {t_dict['text']}; background-color: {t_dict['input_bg']}; font-size: 16px;"
             
             if str(col) == str(target_col):
                 css += ' border: 3px solid #2ecc71 !important;'
                 
             styles.at[idx, col] = css
     return styles
-
-app_settings = load_settings()
-warehouse_email_target = app_settings.get("warehouse_email", "wider71@gmail.com")
-dropdown_emails_list = app_settings.get("dropdown_emails", ["wider71@gmail.com"])
 
 # --- 5. ВКЛАДКИ ОКОН ---
 tab_log, tab_sch, tab_jobs, tab_settings = st.tabs(["דוח משמרת", "סידור", "עבודות היום", "הגדרות"])
@@ -404,7 +374,7 @@ with tab_log:
     with col_logo:
         if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=120)
     with col_title:
-        st.markdown("<h4 style='color: #ffffff; margin-top:2px; font-weight:bold; font-size:20px;'>דוח משמרת תחנת כוח משאב</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='color: {t['title']}; margin-top:2px; font-weight:bold; font-size:20px;'>דוח משמרת תחנת כוח משאב</h4>", unsafe_allow_html=True)
     with col_cal_r:
         if st.button("▶ יום הבא", type="primary", use_container_width=True): st.session_state.log_date += timedelta(days=1); st.rerun()
     with col_cal_m:
@@ -420,11 +390,11 @@ with tab_log:
 
     st.markdown(f"""
         <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <div style="flex: 1; border: 1px solid #444c56; padding: 4px 12px; background-color: #22272e; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <b style="color: #d35400; font-size: 14px;">🌞 משמרת בוקר:</b> <span style="font-size: 16px; font-weight: bold; color: #ffffff;">{', '.join(s1_names)}</span>
+            <div style="flex: 1; border: 1px solid {t['sum_border']}; padding: 4px 12px; background-color: {t['sum_m_bg']}; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                <b style="color: #d35400; font-size: 14px;">🌞 משמרת בוקר:</b> <span style="font-size: 16px; font-weight: bold; color: {t['sum_m_txt']};">{', '.join(s1_names)}</span>
             </div>
-            <div style="flex: 1; border: 1px solid #444c56; padding: 4px 12px; background-color: #22272e; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                <b style="color: #2980b9; font-size: 14px;">🌙 משמרת לילה:</b> <span style="font-size: 16px; font-weight: bold; color: #ffffff;">{', '.join(s2_names)}</span>
+            <div style="flex: 1; border: 1px solid {t['sum_border']}; padding: 4px 12px; background-color: {t['sum_n_bg']}; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                <b style="color: #2980b9; font-size: 14px;">🌙 משמרת לילה:</b> <span style="font-size: 16px; font-weight: bold; color: {t['sum_n_txt']};">{', '.join(s2_names)}</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -529,7 +499,7 @@ with tab_log:
 # ОКНО 2: РАСПИСАНИЕ (СИДУР)
 # ==========================================
 with tab_sch:
-    st.markdown("<h3>טבלת סידור עבודה</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color: {t['title']};'>טבלת סידור עבודה</h3>", unsafe_allow_html=True)
     if active_sch_id:
         try:
             request = drive_service.files().get_media(fileId=active_sch_id)
@@ -557,7 +527,7 @@ with tab_sch:
                             target_col_name = str(col)
                     break
             
-            styled_df = df_ui.style.apply(lambda df: generate_safe_styles(df, target_col_name), axis=None)
+            styled_df = df_ui.style.apply(lambda df: generate_safe_styles(df, target_col_name, t), axis=None)
             styled_df = styled_df.set_properties(**{'text-align': 'center', 'font-weight': 'bold'})
             
             st.dataframe(styled_df, use_container_width=True, height=550)
@@ -568,7 +538,7 @@ with tab_sch:
 # ОКНО 3: РАБОТЫ НА СЕГОДНЯ
 # ==========================================
 with tab_jobs:
-    st.markdown("<h3>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color: {t['title']};'>עבודות מתוכננות להיום</h3>", unsafe_allow_html=True)
     
     loaded_jobs = load_jobs_db(date_str)
     saved_jobs_inputs = []
@@ -643,19 +613,24 @@ with tab_jobs:
 # ОКНО 4: НАСТРОЙКИ (הגדרות)
 # ==========================================
 with tab_settings:
-    st.markdown("<h3>הגדרות מערכת</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color: {t['title']};'>הגדרות מערכת</h3>", unsafe_allow_html=True)
     st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
     
-    col_set_1, col_space, col_set_2 = st.columns([10, 1, 10])
+    col_set_1, col_space1, col_set_2, col_space2, col_set_3 = st.columns([10, 1, 10, 1, 10])
     
     with col_set_1:
-        st.markdown("<div style='color: #adbac7; font-weight: bold; font-size: 16px;'>רשימת אימיילים (לרשימה נפתחת - אחד בכל שורה):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
-        emails_str = "\n".join(dropdown_emails_list)
-        new_emails_str = st.text_area("Drop Emails", value=emails_str, height=150, label_visibility="collapsed")
+        st.markdown(f"<div style='color: {t['title']}; font-weight: bold; font-size: 16px;'>בחירת נושא (Theme):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
+        theme_keys = list(THEMES.keys())
+        new_theme = st.selectbox("Theme", theme_keys, index=theme_keys.index(current_theme), label_visibility="collapsed")
         
     with col_set_2:
-        st.markdown("<div style='color: #adbac7; font-weight: bold; font-size: 16px;'>אימייל מחסן (לכפתור @ בדוח משמרת):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='color: {t['title']}; font-weight: bold; font-size: 16px;'>אימייל מחסן (לכפתור @ בדוח משמרת):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
         new_wh_email = st.text_input("WH Email", value=warehouse_email_target, label_visibility="collapsed")
+
+    with col_set_3:
+        st.markdown(f"<div style='color: {t['title']}; font-weight: bold; font-size: 16px;'>רשימת אימיילים (לרשימה נפתחת - אחד בכל שורה):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
+        emails_str = "\n".join(dropdown_emails_list)
+        new_emails_str = st.text_area("Drop Emails", value=emails_str, height=150, label_visibility="collapsed")
         
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
@@ -664,7 +639,8 @@ with tab_settings:
         if st.button("💾 שמור הגדרות", type="primary", use_container_width=True):
             new_settings = {
                 "dropdown_emails": [e.strip() for e in new_emails_str.split("\n") if e.strip()],
-                "warehouse_email": new_wh_email.strip()
+                "warehouse_email": new_wh_email.strip(),
+                "theme": new_theme
             }
             
             settings_json_str = json.dumps(new_settings, ensure_ascii=False, indent=4)
