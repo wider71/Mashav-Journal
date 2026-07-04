@@ -119,6 +119,7 @@ st.markdown("""
     .stApp { background-color: #9ba4b5; }
     * { direction: rtl !important; text-align: right !important; }
     
+    /* УБИВАЕМ ВСЕ ЗАЗОРЫ МЕЖДУ ЯЧЕЙКАМИ И СТРОКАМИ */
     div[data-testid="stVerticalBlock"] { gap: 0px !important; }
     div[data-testid="stHorizontalBlock"] { gap: 0px !important; align-items: stretch !important; margin-bottom: 0px !important; }
     div[data-testid="column"] { padding: 0px !important; } 
@@ -126,6 +127,7 @@ st.markdown("""
     div.element-container { margin-bottom: 0px !important; padding-bottom: 0px !important; overflow: visible !important; }
     label[data-testid="stWidgetLabel"] { display: none !important; height: 0px !important; margin: 0px !important; }
     
+    /* СТИЛЬ ДЛЯ ТЕКСТОВЫХ ПОЛЕЙ (ИДЕАЛЬНЫЙ ПРЯМОУГОЛЬНИК 40px) */
     div[data-testid="stTextInput"] div[data-baseweb="input"] {
         border-radius: 0px !important; 
         height: 40px !important;
@@ -152,6 +154,7 @@ st.markdown("""
         margin-right: -1px !important; 
     }
 
+    /* ИДЕАЛЬНО ОТЦЕНТРОВАННЫЕ ЗАГОЛОВКИ ТУРБИН (РАСПОРКА ИЗНУТРИ) */
     .header-orange, .header-blue {
         text-align: center !important;
         font-weight: bold !important;
@@ -166,8 +169,13 @@ st.markdown("""
     }
     .header-orange { background-color: #d35400 !important; }
     .header-blue { background-color: #2980b9 !important; }
-    .header-orange p, .header-blue p { margin: 0px !important; padding: 0px !important; line-height: normal !important; }
+    .header-orange p, .header-blue p { 
+        margin: 0px !important; 
+        padding: 0px !important; 
+        line-height: normal !important; 
+    }
 
+    /* НОМЕРА В עבודות */
     .num-box {
         background-color: #2c3e50 !important;
         color: white !important;
@@ -184,6 +192,7 @@ st.markdown("""
     }
     .num-box p { margin: 0px !important; padding: 0px !important; }
     
+    /* КНОПКА @ - ИДЕАЛЬНО ВШИТА В СЕТКУ */
     div.row-widget.stButton { margin: 0px !important; padding: 0px !important; }
     button[kind="secondary"] {
         height: 40px !important;
@@ -204,6 +213,7 @@ st.markdown("""
         z-index: 10;
     }
 
+    /* ДИЗАЙН ОСНОВНЫХ КНОПОК */
     .stTabs [data-baseweb="tab-list"] { background-color: #7a8594; border-radius: 5px; padding: 2px; margin-bottom: 15px;}
     .stTabs [data-baseweb="tab"] { font-size: 22px !important; font-weight: bold !important; color: white !important; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #2c3e50 !important; color: #fff !important; border-radius: 5px; }
@@ -216,9 +226,6 @@ st.markdown("""
         height: 42px !important;
         margin: 0px !important;
     }
-    
-    /* Убираем жирную границу для зеленой рамки */
-    [data-testid="stDataFrame"] { border: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -313,7 +320,6 @@ def load_jobs_db(target_date):
         except: pass
     return [""] * 15
 
-# ФУНКЦИЯ ЗАЛИВКИ ЦВЕТА (БЕЗ РАМОК)
 def colorize_schedule(val):
     v = str(val).split('.')[0].strip()
     if v == '1': return 'background-color: #a9dfbf; color: black; font-weight: bold; font-size: 16px;'
@@ -365,40 +371,18 @@ with tab_log:
     for u_name, u_num in units:
         st.markdown(f'<div style="height:15px;"></div>', unsafe_allow_html=True)
         
-        # ОСНОВНЫЕ СТОЛБЦЫ: [0] = Утро (Справа), [2] = Ночь (Слева)
-        c_morn, c_space, c_night = st.columns([10, 0.5, 10])
+        # ПРАВИЛЬНЫЙ RTL-ПОРЯДОК: [0]=Слева (Ночь), [2]=Справа (Утро)
+        c_night, c_space, c_morn = st.columns([10, 0.5, 10])
         
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
-        with c_morn:
-            # ПРАВАЯ СТОРОНА: ОРАНЖЕВАЯ (УТРО)
-            st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
-            for idx in range(6):
-                # ВНУТРИ СТРОКИ: [0]=Описание (Справа), [1]=Время (Центр), [2]=Кнопка @ (Слева)
-                c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
-                with c_d:
-                    d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
-                with c_h:
-                    h_m = st.text_input(f"hm_{u_num}_{idx}", value=m_data[idx].get('Hour',''), key=f"hm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
-                with c_b:
-                    if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
-                        h_val_cur = st.session_state.get(f"hm_{u_num}_{idx}_{date_str}", "")
-                        d_val_cur = st.session_state.get(f"dm_{u_num}_{idx}_{date_str}", "")
-                        if h_val_cur.strip() or d_val_cur.strip():
-                            success, msg = send_warehouse_email("wider71@gmail.com", u_name, "בוקר", h_val_cur, d_val_cur, date_str)
-                            if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
-                            else: st.toast(f"שגיאה: {msg}", icon="❌")
-                        else:
-                            st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
-                saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
-                
         with c_night:
             # ЛЕВАЯ СТОРОНА: СИНЯЯ (НОЧЬ)
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                # ВНУТРИ СТРОКИ: [0]=Описание (Справа), [1]=Время (Центр), [2]=Кнопка @ (Слева)
-                c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
+                # ВНУТРИ СТРОКИ: [0]=Слева(Описание), [1]=Центр(Время), [2]=Справа(Кнопка @)
+                c_d, c_h, c_b = st.columns([11.5, 2.5, 1])
                 with c_d:
                     d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
                 with c_h:
@@ -414,6 +398,28 @@ with tab_log:
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
                 saved_inputs[(u_name, 'Night', idx)] = (h_n, d_n)
+                
+        with c_morn:
+            # ПРАВАЯ СТОРОНА: ОРАНЖЕВАЯ (УТРО)
+            st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
+            for idx in range(6):
+                # ВНУТРИ СТРОКИ: [0]=Слева(Описание), [1]=Центр(Время), [2]=Справа(Кнопка @)
+                c_d, c_h, c_b = st.columns([11.5, 2.5, 1])
+                with c_d:
+                    d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with c_h:
+                    h_m = st.text_input(f"hm_{u_num}_{idx}", value=m_data[idx].get('Hour',''), key=f"hm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                with c_b:
+                    if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
+                        h_val_cur = st.session_state.get(f"hm_{u_num}_{idx}_{date_str}", "")
+                        d_val_cur = st.session_state.get(f"dm_{u_num}_{idx}_{date_str}", "")
+                        if h_val_cur.strip() or d_val_cur.strip():
+                            success, msg = send_warehouse_email("wider71@gmail.com", u_name, "בוקר", h_val_cur, d_val_cur, date_str)
+                            if success: st.toast("נשלח למחסן בהצלחה!", icon="✅")
+                            else: st.toast(f"שגיאה: {msg}", icon="❌")
+                        else:
+                            st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
+                saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
 
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
@@ -481,14 +487,7 @@ with tab_sch:
             df_ui = df_clean[rev_cols]
             df_ui.rename(columns={'0': 'שם'}, inplace=True)
             
-            # БЕЗОПАСНОЕ ПРИМЕНЕНИЕ СТИЛЕЙ С ЗЕЛЕНОЙ РАМКОЙ
-            target_day_str = str(st.session_state.log_date.day)
             styled_df = df_ui.style.map(colorize_schedule).set_properties(**{'text-align': 'center', 'font-weight': 'bold'})
-            
-            # Применяем зеленую рамку только если колонка существует
-            if target_day_str in df_ui.columns:
-                styled_df = styled_df.set_properties(subset=[target_day_str], **{'border': '3px solid #2ecc71 !important'})
-            
             st.dataframe(styled_df, use_container_width=True, height=550)
         except Exception as e: st.error(f"שגיאה: {e}")
 
@@ -503,7 +502,7 @@ with tab_jobs:
     saved_jobs_inputs = []
     
     for i in range(15):
-        # [0]=Номер (Справа), [1]=Текст (Слева)
+        # [0]=Текст (Слева), [1]=Номер (Справа)
         c_task, c_num = st.columns([14, 1])
         with c_num:
             st.markdown(f'<div class="num-box"><p>{i+1}</p></div>', unsafe_allow_html=True)
