@@ -124,9 +124,27 @@ def load_settings():
             done = False
             while not done: _, done = downloader.next_chunk()
             fh.seek(0)
-            return json.loads(fh.read().decode('utf-8'))
+            data = json.loads(fh.read().decode('utf-8'))
+            if "locked_rows" not in data:
+                data["locked_rows"] = {}
+            return data
         except: pass
-    return {"dropdown_emails": ["wider71@gmail.com"], "warehouse_email": "wider71@gmail.com", "theme": "Dark SCADA (כהה)"}
+    return {"dropdown_emails": ["wider71@gmail.com"], "warehouse_email": "wider71@gmail.com", "theme": "Dark SCADA (כהה)", "locked_rows": {}}
+
+def save_settings_to_drive(settings_dict):
+    settings_json_str = json.dumps(settings_dict, ensure_ascii=False, indent=4)
+    fh = io.BytesIO(settings_json_str.encode('utf-8'))
+    media = MediaIoBaseUpload(fh, mimetype='application/json', resumable=True)
+    file_id = get_file_id(SETTINGS_FILE)
+    try:
+        if file_id:
+            drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+        else:
+            file_metadata = {'name': SETTINGS_FILE, 'parents': [FOLDER_ID]}
+            drive_service.files().create(body=file_metadata, media_body=media, supportsAllDrives=True).execute()
+        return True
+    except:
+        return False
 
 app_settings = load_settings()
 warehouse_email_target = app_settings.get("warehouse_email", "wider71@gmail.com")
@@ -147,7 +165,7 @@ THEMES = {
         "sum_m_bg": "#22272e", "sum_m_txt": "#ffffff", "sum_border": "#444c56",
         "sum_n_bg": "#22272e", "sum_n_txt": "#ffffff"
     },
-    "Classic (צבעוני ישן)": {
+    "Classic (צבעוני ישн)": {
         "bg": "#9ba4b5", "input_bg": "#eaf0dc", "text": "#000000", "border": "#7f8c8d",
         "tab_bg": "#7a8594", "tab_text": "white", "tab_active": "#2c3e50", "tab_active_txt": "#ffffff",
         "num_bg": "#2c3e50", "num_txt": "white", "title": "#2c3e50",
@@ -267,7 +285,7 @@ def get_schedule_file_drive(target_month):
 
 @st.cache_data(ttl=10) 
 def get_operators(file_id, target_day):
-    if not file_id: return ["קובץ חסר"], ["קובץ חסר"]
+    if not file_id: return ["קобץ חסר"], ["קובץ חסר"]
     try:
         request = drive_service.files().get_media(fileId=file_id)
         fh = io.BytesIO(); downloader = MediaIoBaseDownload(fh, request)
@@ -282,7 +300,7 @@ def get_operators(file_id, target_day):
         target_str = str(target_day)
         if target_str not in cleaned_cal_row: return ["חסר"], []
         target_col = cleaned_cal_row.index(target_str)
-        known = ['אמיר', 'נתי', 'גידי', 'אודל', 'ויקטור', 'יבגני', 'ליאור', 'ודים', "ז'קה", 'סשה']
+        known = ['אמיר', 'נתי', 'גידי', 'אודל', 'ויקטור', 'יבгני', 'ליאור', 'ודים', "ז'קה", 'סשה']
         s1, s2 = [], []
         for row in raw:
             for val in row:
@@ -376,7 +394,6 @@ with tab_log:
     with col_logo:
         if os.path.exists(LOGO_FILE): st.image(LOGO_FILE, width=120)
     with col_title:
-        # ГОРИЗОНТАЛЬНЫЙ FLEX-БЛОК ДЛЯ ИСКЛЮЧЕНИЯ ОБРЕЗАНИЯ ВЫСОТЫ
         st.markdown(f"""
             <div style="display: flex; align-items: baseline; justify-content: center; direction: rtl; gap: 15px;">
                 <span style="color: {t['title']}; font-weight: bold; font-size: 20px;">דוח משמרת תחנת כוח משאב</span>
@@ -419,14 +436,33 @@ with tab_log:
         m_data = get_journal_data_list(date_str, u_name, 'Morning')
         n_data = get_journal_data_list(date_str, u_name, 'Night')
         
+        # Загрузка флагов блокировки для текущих разделов
+        lock_key_m = f"{u_name}_Morning"
+        is_locked_m = lock_key_m in app_settings.get("locked_rows", {})
+        locked_data_m = app_settings.get("locked_rows", {}).get(lock_key_m, {})
+
+        lock_key_n = f"{u_name}_Night"
+        is_locked_n = lock_key_n in app_settings.get("locked_rows", {})
+        locked_data_n = app_settings.get("locked_rows", {}).get(lock_key_n, {})
+        
         with c_morn:
             st.markdown(f'<div class="header-orange"><p>{u_num}. {u_name} - משמרת בוקר</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
+                c_d, c_h, c_b, c_l = st.columns([10.0, 2.5, 1.5, 1.5])
+                
+                if idx == 0 and is_locked_m:
+                    val_d = locked_data_m.get("Description", "")
+                    val_h = locked_data_m.get("Hour", "")
+                    disabled_state = True
+                else:
+                    val_d = m_data[idx].get('Description','')
+                    val_h = m_data[idx].get('Hour','')
+                    disabled_state = False
+
                 with c_d:
-                    d_m = st.text_input(f"dm_{u_num}_{idx}", value=m_data[idx].get('Description',''), key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                    d_m = st.text_input(f"dm_{u_num}_{idx}", value=val_d, key=f"dm_{u_num}_{idx}_{date_str}", label_visibility="collapsed", disabled=disabled_state)
                 with c_h:
-                    h_m = st.text_input(f"hm_{u_num}_{idx}", value=m_data[idx].get('Hour',''), key=f"hm_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                    h_m = st.text_input(f"hm_{u_num}_{idx}", value=val_h, key=f"hm_{u_num}_{idx}_{date_str}", label_visibility="collapsed", disabled=disabled_state)
                 with c_b:
                     if st.button("@", key=f"btn_wh_m_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
                         h_val_cur = st.session_state.get(f"hm_{u_num}_{idx}_{date_str}", "")
@@ -437,16 +473,43 @@ with tab_log:
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
+                with c_l:
+                    if idx == 0:
+                        lock_icon = "🔒" if is_locked_m else "🔓"
+                        if st.button(lock_icon, key=f"btn_lock_m_{u_num}_{date_str}", type="secondary", use_container_width=True):
+                            if is_locked_m:
+                                if "locked_rows" in app_settings and lock_key_m in app_settings["locked_rows"]:
+                                    del app_settings["locked_rows"][lock_key_m]
+                            else:
+                                h_val_cur = st.session_state.get(f"hm_{u_num}_0_{date_str}", "")
+                                d_val_cur = st.session_state.get(f"dm_{u_num}_0_{date_str}", "")
+                                if "locked_rows" not in app_settings:
+                                    app_settings["locked_rows"] = {}
+                                app_settings["locked_rows"][lock_key_m] = {"Hour": h_val_cur, "Description": d_val_cur}
+                            
+                            save_settings_to_drive(app_settings)
+                            st.cache_data.clear()
+                            st.rerun()
                 saved_inputs[(u_name, 'Morning', idx)] = (h_m, d_m)
                 
         with c_night:
             st.markdown(f'<div class="header-blue"><p>{u_num}. {u_name} - משמרת לילה</p></div>', unsafe_allow_html=True)
             for idx in range(6):
-                c_d, c_h, c_b = st.columns([11.5, 2.5, 1.5])
+                c_d, c_h, c_b, c_l = st.columns([10.0, 2.5, 1.5, 1.5])
+                
+                if idx == 0 and is_locked_n:
+                    val_d = locked_data_n.get("Description", "")
+                    val_h = locked_data_n.get("Hour", "")
+                    disabled_state = True
+                else:
+                    val_d = n_data[idx].get('Description','')
+                    val_h = n_data[idx].get('Hour','')
+                    disabled_state = False
+
                 with c_d:
-                    d_n = st.text_input(f"dn_{u_num}_{idx}", value=n_data[idx].get('Description',''), key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                    d_n = st.text_input(f"dn_{u_num}_{idx}", value=val_d, key=f"dn_{u_num}_{idx}_{date_str}", label_visibility="collapsed", disabled=disabled_state)
                 with c_h:
-                    h_n = st.text_input(f"hn_{u_num}_{idx}", value=n_data[idx].get('Hour',''), key=f"hn_{u_num}_{idx}_{date_str}", label_visibility="collapsed")
+                    h_n = st.text_input(f"hn_{u_num}_{idx}", value=val_h, key=f"hn_{u_num}_{idx}_{date_str}", label_visibility="collapsed", disabled=disabled_state)
                 with c_b:
                     if st.button("@", key=f"btn_wh_n_{u_num}_{idx}_{date_str}", type="secondary", use_container_width=True):
                         h_val_cur = st.session_state.get(f"hn_{u_num}_{idx}_{date_str}", "")
@@ -457,6 +520,23 @@ with tab_log:
                             else: st.toast(f"שגיאה: {msg}", icon="❌")
                         else:
                             st.toast("השורה ריקה - אין מה לשלוח!", icon="⚠️")
+                with c_l:
+                    if idx == 0:
+                        lock_icon = "🔒" if is_locked_n else "🔓"
+                        if st.button(lock_icon, key=f"btn_lock_n_{u_num}_{date_str}", type="secondary", use_container_width=True):
+                            if is_locked_n:
+                                if "locked_rows" in app_settings and lock_key_n in app_settings["locked_rows"]:
+                                    del app_settings["locked_rows"][lock_key_n]
+                            else:
+                                h_val_cur = st.session_state.get(f"hn_{u_num}_0_{date_str}", "")
+                                d_val_cur = st.session_state.get(f"dn_{u_num}_0_{date_str}", "")
+                                if "locked_rows" not in app_settings:
+                                    app_settings["locked_rows"] = {}
+                                app_settings["locked_rows"][lock_key_n] = {"Hour": h_val_cur, "Description": d_val_cur}
+                            
+                            save_settings_to_drive(app_settings)
+                            st.cache_data.clear()
+                            st.rerun()
                 saved_inputs[(u_name, 'Night', idx)] = (h_n, d_n)
 
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
@@ -480,19 +560,19 @@ with tab_log:
             if file_id: 
                 drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
                 st.cache_data.clear()
-                st.success("היומן נשמר בענן בהצלחה!")
+                st.success("היומן נшמר בענן בהצלחה!")
                 st.rerun()
             else: 
                 st.error("שגיאה 403: קובץ journal_db.csv לא נמצא.")
                 
     with col_send:
-        btn_send_log = st.button("✉️ שלח יומן", type="primary", use_container_width=True)
+        btn_send_log = st.button("✉️ שלח יומн", type="primary", use_container_width=True)
         
     with col_addr:
         target_log_email = st.selectbox("לשלוח יומן ל:", dropdown_emails_list, key="log_email", label_visibility="collapsed")
         
     if btn_send_log:
-        with st.spinner("מכין ושולח דוח..."):
+        with st.spinner("מכיн ושולח דוח..."):
             journal_rows_for_email = []
             for (u_name, shift, idx), (h, d) in saved_inputs.items():
                 if h.strip() or d.strip():
@@ -652,24 +732,15 @@ with tab_settings:
             new_settings = {
                 "dropdown_emails": [e.strip() for e in new_emails_str.split("\n") if e.strip()],
                 "warehouse_email": new_wh_email.strip(),
-                "theme": selected_theme
+                "theme": selected_theme,
+                "locked_rows": app_settings.get("locked_rows", {})
             }
-            
-            settings_json_str = json.dumps(new_settings, ensure_ascii=False, indent=4)
-            fh = io.BytesIO(settings_json_str.encode('utf-8'))
-            media = MediaIoBaseUpload(fh, mimetype='application/json', resumable=True)
-            
-            file_id = get_file_id(SETTINGS_FILE)
-            try:
-                if file_id:
-                    drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
-                    st.cache_data.clear()
-                    st.success("ההגדרות נשמרו בהצלחה בענן!")
-                    st.rerun()
-                else:
-                    st.error("Файл mashav_settings.json не найден в Google Drive! Создай его вручную.")
-            except Exception as e:
-                st.error(f"שגיאה בשמירת הגדרות: {e}")
+            if save_settings_to_drive(new_settings):
+                st.cache_data.clear()
+                st.success("ההגדרות נשמרו בהצלחה בענן!")
+                st.rerun()
+            else:
+                st.error("שגיאה בשмירת הגדרות.")
 
     st.markdown(f"""
         <div style="direction: ltr !important; text-align: left !important; margin-top: 50px; font-size: 11px; color: {t['text']}; opacity: 0.5;">
