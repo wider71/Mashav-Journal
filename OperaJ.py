@@ -639,21 +639,22 @@ with tab_jobs:
 # ==========================================
 with tab_settings:
     st.markdown("<h3>הגדרות מערכת</h3>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
     
-    col_set_1, col_set_2 = st.columns([1, 1])
+    col_set_1, col_space, col_set_2 = st.columns([10, 1, 10])
     
     with col_set_1:
-        st.markdown("<p style='color: #adbac7; margin-bottom: 5px; font-weight: bold;'>רשימת אימיילים (לרשימה נפתחת - אחד בכל שורה):</p>", unsafe_allow_html=True)
+        st.markdown("<div style='color: #adbac7; font-weight: bold; font-size: 16px;'>רשימת אימיילים (לרשימה נפתחת - אחד בכל שורה):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
         emails_str = "\n".join(dropdown_emails_list)
         new_emails_str = st.text_area("Drop Emails", value=emails_str, height=150, label_visibility="collapsed")
         
     with col_set_2:
-        st.markdown("<p style='color: #adbac7; margin-bottom: 5px; font-weight: bold;'>אימייל מחסן (לכפתור @ בדוח משמרת):</p>", unsafe_allow_html=True)
+        st.markdown("<div style='color: #adbac7; font-weight: bold; font-size: 16px;'>אימייל מחסן (לכפתור @ בדוח משמרת):</div><div style='height: 15px;'></div>", unsafe_allow_html=True)
         new_wh_email = st.text_input("WH Email", value=warehouse_email_target, label_visibility="collapsed")
         
     st.markdown(f'<div style="height:20px;"></div>', unsafe_allow_html=True)
     
-    col_save_set, _ = st.columns([1, 3])
+    col_save_set, _ = st.columns([2, 8])
     with col_save_set:
         if st.button("💾 שמור הגדרות", type="primary", use_container_width=True):
             new_settings = {
@@ -668,10 +669,8 @@ with tab_settings:
             file_id = get_file_id(SETTINGS_FILE)
             try:
                 if file_id:
-                    # Обновляем существующий файл
                     drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
                 else:
-                    # Создаем новый файл, если его еще нет
                     file_metadata = {'name': SETTINGS_FILE, 'parents': [FOLDER_ID]}
                     drive_service.files().create(body=file_metadata, media_body=media, supportsAllDrives=True).execute()
                 
